@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  app-insights-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_REGION_NAME=${REACT_APP_REGION_NAME:-SAN Region}
+        - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-http://172.16.11.241:5000}
+    container_name: app-insights-dashboard
+    environment:
+      # Set the port dynamically (default is 80)
+      - PORT=${PORT:-80}
+    ports:
+      # Map host port to container port dynamically
+      - "${HOST_PORT:-3000}:${PORT:-80}"
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

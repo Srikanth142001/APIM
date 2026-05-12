@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: app-insights-backend
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    environment:
+      - PORT=${PORT}
+      - APP_INSIGHTS_APP_ID=${APP_INSIGHTS_APP_ID}
+      - APP_INSIGHTS_API_KEY=${APP_INSIGHTS_API_KEY}
+      - AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+      - AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}
+      - AKS_CLUSTER_NAME=${AKS_CLUSTER_NAME}
+      - MYSQL_SERVER_NAME=${MYSQL_SERVER_NAME}
+      - LOG_ANALYTICS_AUTH_TOKEN=${LOG_ANALYTICS_AUTH_TOKEN}
+    restart: unless-stopped

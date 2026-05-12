@@ -1,0 +1,32 @@
+# Node modules
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Shared token files (mounted at runtime in Docker)
+shared/
+*.token.txt
+mgmt_token.txt
+log_token.txt
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE configs
+.vscode/
+.idea/
+*.swp

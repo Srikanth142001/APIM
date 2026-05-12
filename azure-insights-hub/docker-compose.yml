@@ -1,0 +1,59 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Azure Insights Hub
+#
+# QUICK START:
+#   cp .env.example .env && nano .env   # fill in your values
+#   docker-compose up -d
+#   open http://YOUR_SERVER_IP:3001
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    image: ${DOCKER_IMAGE_BACKEND:-azure-insights-hub-backend:latest}
+    build: ./backend
+    container_name: aih-backend
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    environment:
+      PORT: "5001"
+      JWT_SECRET: "${JWT_SECRET}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      DEFAULT_ENV_NAME: "${DEFAULT_ENV_NAME:-}"
+      DEFAULT_APP_INSIGHTS_APP_ID: "${DEFAULT_APP_INSIGHTS_APP_ID:-}"
+      DEFAULT_APP_INSIGHTS_API_KEY: "${DEFAULT_APP_INSIGHTS_API_KEY:-}"
+      DEFAULT_SUBSCRIPTION_ID: "${DEFAULT_SUBSCRIPTION_ID:-}"
+      DEFAULT_RESOURCE_GROUP: "${DEFAULT_RESOURCE_GROUP:-}"
+    volumes:
+      - aih-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    image: ${DOCKER_IMAGE_FRONTEND:-azure-insights-hub-frontend:latest}
+    build: ./frontend
+    container_name: aih-frontend
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    environment:
+      # These are written into /config.js at container startup by docker-entrypoint.sh
+      # API_HOSTNAME = the IP/hostname the BROWSER uses to reach the backend
+      API_PROTOCOL: "${API_PROTOCOL:-http}"
+      API_HOSTNAME: "${API_HOSTNAME:-localhost}"
+      API_PORT: "${BACKEND_PORT:-5001}"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  aih-data:
+    driver: local

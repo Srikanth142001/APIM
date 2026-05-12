@@ -1,0 +1,63 @@
+{
+  "name": "app-insights-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.10.0",
+    "classnames": "^2.5.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.525.0",
+    "react": "^19.1.0",
+    "react-countup": "^6.5.3",
+    "react-datepicker": "^8.4.0",
+    "react-dom": "^19.1.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.6.3",
+    "react-scripts": "5.0.1",
+    "react-select": "^5.10.2",
+    "recharts": "^3.0.2",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "start:san": "env-cmd -f .env.san react-scripts start",
+    "start:useast": "env-cmd -f .env.useast react-scripts start",
+    "start:euwest": "env-cmd -f .env.euwest react-scripts start",
+    "start:3001": "set PORT=3001 && react-scripts start",
+    "start:4000": "set PORT=4000 && react-scripts start",
+    "start:5000": "set PORT=5000 && react-scripts start",
+    "build": "react-scripts build",
+    "build:san": "env-cmd -f .env.san react-scripts build",
+    "build:useast": "env-cmd -f .env.useast react-scripts build",
+    "build:euwest": "env-cmd -f .env.euwest react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
+  }
+}
