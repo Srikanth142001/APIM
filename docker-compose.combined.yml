@@ -1,0 +1,89 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NexGen APIM — Combined Container Deployment
+# Single container running both frontend and backend
+#
+# Usage:
+#   1. Copy .env.combined.example to .env.combined
+#   2. Fill in your Azure credentials and configuration
+#   3. Run: docker-compose -f docker-compose.combined.yml up -d
+#
+# Access: http://localhost:8082
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+  apim-combined:
+    image: reddy321678/apim:latest
+    container_name: nexgen-apim-combined
+    restart: unless-stopped
+    
+    ports:
+      - "${APIM_PORT:-8082}:80"
+    
+    environment:
+      # ── Region Configuration ────────────────────────────────────────────────
+      REACT_APP_REGION_NAME: "${REGION_NAME:-SAN Region}"
+      
+      # ── Azure App Insights ──────────────────────────────────────────────────
+      APP_INSIGHTS_APP_ID: "${APP_INSIGHTS_APP_ID}"
+      APP_INSIGHTS_API_KEY: "${APP_INSIGHTS_API_KEY}"
+      
+      # ── Azure Infrastructure ────────────────────────────────────────────────
+      AZURE_SUBSCRIPTION_ID: "${AZURE_SUBSCRIPTION_ID}"
+      AZURE_RESOURCE_GROUP: "${AZURE_RESOURCE_GROUP}"
+      AKS_CLUSTER_NAME: "${AKS_CLUSTER_NAME}"
+      MYSQL_SERVER_NAME: "${MYSQL_SERVER_NAME}"
+      
+      # ── Log Analytics ───────────────────────────────────────────────────────
+      LOG_ANALYTICS_WORKSPACE_ID: "${LOG_ANALYTICS_WORKSPACE_ID}"
+      LOG_ANALYTICS_AUTH_TOKEN: "${LOG_ANALYTICS_AUTH_TOKEN}"
+      
+      # ── Authentication ──────────────────────────────────────────────────────
+      JWT_SECRET: "${JWT_SECRET}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      
+      # ── Telegram Notifications (Optional) ───────────────────────────────────
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      
+      # ── WhatsApp Notifications (Optional) ───────────────────────────────────
+      WHATSAPP_API_URL: "${WHATSAPP_API_URL:-}"
+      WHATSAPP_API_KEY: "${WHATSAPP_API_KEY:-}"
+      
+      # ── Backend Configuration ───────────────────────────────────────────────
+      PORT: "5000"
+      NODE_ENV: "production"
+      
+      # ── Feature Flags (Optional) ────────────────────────────────────────────
+      ENABLE_ML_ALERTS: "${ENABLE_ML_ALERTS:-true}"
+      ENABLE_TELEGRAM: "${ENABLE_TELEGRAM:-false}"
+      ENABLE_WHATSAPP: "${ENABLE_WHATSAPP:-false}"
+      ENABLE_OUTAGE_DETECTION: "${ENABLE_OUTAGE_DETECTION:-true}"
+      
+    volumes:
+      # Optional: Mount for persistent data
+      - apim-data:/app/shared
+      
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    
+    networks:
+      - apim-network
+    
+    labels:
+      - "com.nexgen.apim.service=combined"
+      - "com.nexgen.apim.version=1.0"
+
+volumes:
+  apim-data:
+    driver: local
+
+networks:
+  apim-network:
+    driver: bridge
