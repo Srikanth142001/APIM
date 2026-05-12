@@ -48,90 +48,86 @@ RUN rm -f /app/backend/.env
 COPY --from=frontend-files /usr/share/nginx/html /usr/share/nginx/html
 
 # ── nginx config: serve frontend + proxy /api → backend ──────────────────────
-RUN cat > /etc/nginx/http.d/default.conf << 'NGINXEOF'
-server {
-    listen 80;
-    listen [::]:80;
-    server_name localhost;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml;
-    gzip_min_length 1024;
-
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-
-    # Proxy all /api/* calls to the Node.js backend on localhost:5000
-    location /api {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 180s;
-        proxy_connect_timeout 10s;
-    }
-
-    # Serve React SPA
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # No cache for config.js and index.html
-    location ~* (index\.html|config\.js)$ {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        expires 0;
-    }
-
-    # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-
-    location /health {
-        access_log off;
-        return 200 "healthy\n";
-        add_header Content-Type text/plain;
-    }
-
-    error_page 404 /index.html;
-}
-NGINXEOF
+RUN echo 'server {' > /etc/nginx/http.d/default.conf && \
+    echo '    listen 80;' >> /etc/nginx/http.d/default.conf && \
+    echo '    listen [::]:80;' >> /etc/nginx/http.d/default.conf && \
+    echo '    server_name localhost;' >> /etc/nginx/http.d/default.conf && \
+    echo '    root /usr/share/nginx/html;' >> /etc/nginx/http.d/default.conf && \
+    echo '    index index.html;' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    gzip on;' >> /etc/nginx/http.d/default.conf && \
+    echo '    gzip_types text/plain text/css application/json application/javascript text/xml;' >> /etc/nginx/http.d/default.conf && \
+    echo '    gzip_min_length 1024;' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    add_header X-Frame-Options "SAMEORIGIN" always;' >> /etc/nginx/http.d/default.conf && \
+    echo '    add_header X-Content-Type-Options "nosniff" always;' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    # Proxy all /api/* calls to the Node.js backend on localhost:5000' >> /etc/nginx/http.d/default.conf && \
+    echo '    location /api {' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_pass http://127.0.0.1:5000;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_http_version 1.1;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_set_header Host $host;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_read_timeout 180s;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_connect_timeout 10s;' >> /etc/nginx/http.d/default.conf && \
+    echo '    }' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    # Serve React SPA' >> /etc/nginx/http.d/default.conf && \
+    echo '    location / {' >> /etc/nginx/http.d/default.conf && \
+    echo '        try_files $uri $uri/ /index.html;' >> /etc/nginx/http.d/default.conf && \
+    echo '    }' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    # No cache for config.js and index.html' >> /etc/nginx/http.d/default.conf && \
+    echo '    location ~* (index\.html|config\.js)$ {' >> /etc/nginx/http.d/default.conf && \
+    echo '        add_header Cache-Control "no-cache, no-store, must-revalidate";' >> /etc/nginx/http.d/default.conf && \
+    echo '        expires 0;' >> /etc/nginx/http.d/default.conf && \
+    echo '    }' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    # Cache static assets' >> /etc/nginx/http.d/default.conf && \
+    echo '    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {' >> /etc/nginx/http.d/default.conf && \
+    echo '        expires 1y;' >> /etc/nginx/http.d/default.conf && \
+    echo '        add_header Cache-Control "public, immutable";' >> /etc/nginx/http.d/default.conf && \
+    echo '        access_log off;' >> /etc/nginx/http.d/default.conf && \
+    echo '    }' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    location /health {' >> /etc/nginx/http.d/default.conf && \
+    echo '        access_log off;' >> /etc/nginx/http.d/default.conf && \
+    echo '        return 200 "healthy\n";' >> /etc/nginx/http.d/default.conf && \
+    echo '        add_header Content-Type text/plain;' >> /etc/nginx/http.d/default.conf && \
+    echo '    }' >> /etc/nginx/http.d/default.conf && \
+    echo '' >> /etc/nginx/http.d/default.conf && \
+    echo '    error_page 404 /index.html;' >> /etc/nginx/http.d/default.conf && \
+    echo '}' >> /etc/nginx/http.d/default.conf
 
 # ── supervisord: manages both nginx and node ──────────────────────────────────
-RUN cat > /etc/supervisord.conf << 'SUPEOF'
-[supervisord]
-nodaemon=true
-logfile=/var/log/supervisord.log
-pidfile=/var/run/supervisord.pid
-loglevel=info
-
-[program:backend]
-command=node /app/backend/index.js
-directory=/app/backend
-autostart=true
-autorestart=true
-startretries=5
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-environment=PORT="5000",NODE_ENV="production"
-
-[program:nginx]
-command=nginx -g "daemon off;"
-autostart=true
-autorestart=true
-startretries=3
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-SUPEOF
+RUN echo '[supervisord]' > /etc/supervisord.conf && \
+    echo 'nodaemon=true' >> /etc/supervisord.conf && \
+    echo 'logfile=/var/log/supervisord.log' >> /etc/supervisord.conf && \
+    echo 'pidfile=/var/run/supervisord.pid' >> /etc/supervisord.conf && \
+    echo 'loglevel=info' >> /etc/supervisord.conf && \
+    echo '' >> /etc/supervisord.conf && \
+    echo '[program:backend]' >> /etc/supervisord.conf && \
+    echo 'command=node /app/backend/index.js' >> /etc/supervisord.conf && \
+    echo 'directory=/app/backend' >> /etc/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisord.conf && \
+    echo 'startretries=5' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo 'environment=PORT="5000",NODE_ENV="production"' >> /etc/supervisord.conf && \
+    echo '' >> /etc/supervisord.conf && \
+    echo '[program:nginx]' >> /etc/supervisord.conf && \
+    echo 'command=nginx -g "daemon off;"' >> /etc/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisord.conf && \
+    echo 'startretries=3' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisord.conf
 
 # ── Entrypoint: write config.js then start supervisord ───────────────────────
 COPY combined-entrypoint.sh /entrypoint.sh
