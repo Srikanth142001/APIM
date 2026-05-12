@@ -1,0 +1,69 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NexGen APIM — Production docker-compose
+# Uses pre-built images from Docker Hub: reddy321678/momo_frontend & momo_backend
+#
+# Usage:
+#   cp .env.prod .env
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# To run on a custom port:
+#   FRONTEND_PORT=8082 docker-compose -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    image: reddy321678/momo_backend:latest
+    container_name: momo-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    environment:
+      PORT: "5000"
+      NODE_ENV: production
+      # ── App Insights ──────────────────────────────────────────────────────
+      APP_INSIGHTS_APP_ID: "${APP_INSIGHTS_APP_ID}"
+      APP_INSIGHTS_API_KEY: "${APP_INSIGHTS_API_KEY}"
+      # ── Azure ─────────────────────────────────────────────────────────────
+      AZURE_SUBSCRIPTION_ID: "${AZURE_SUBSCRIPTION_ID}"
+      AZURE_RESOURCE_GROUP: "${AZURE_RESOURCE_GROUP}"
+      AKS_CLUSTER_NAME: "${AKS_CLUSTER_NAME}"
+      MYSQL_SERVER_NAME: "${MYSQL_SERVER_NAME}"
+      LOG_ANALYTICS_AUTH_TOKEN: "${LOG_ANALYTICS_AUTH_TOKEN}"
+      # ── Auth ──────────────────────────────────────────────────────────────
+      JWT_SECRET: "${JWT_SECRET}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      # ── Notifications (optional) ──────────────────────────────────────────
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+    volumes:
+      - momo-shared:/app/shared
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/features"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    image: reddy321678/momo_frontend:latest
+    container_name: momo-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8082}:80"
+    environment:
+      # ── Backend connection (what the BROWSER uses to reach the backend) ───
+      REACT_APP_API_PROTOCOL: "${API_PROTOCOL:-http}"
+      REACT_APP_API_HOSTNAME: "${API_HOSTNAME}"
+      REACT_APP_API_PORT: "${BACKEND_PORT:-5000}"
+      REACT_APP_REGION_NAME: "${REGION_NAME:-SAN Region}"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  momo-shared:
+    driver: local

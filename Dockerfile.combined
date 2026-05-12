@@ -1,0 +1,147 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# NexGen APIM — Single Combined Container
+# Pulls frontend static files from momo_frontend image
+# Pulls backend Node.js app from momo_backend image
+# Runs both inside one container via supervisord
+#
+# Build:
+#   docker build -f Dockerfile.combined -t reddy321678/momo_combined:latest .
+#   docker push reddy321678/momo_combined:latest
+#
+# Run:
+#   docker run -d -p 8082:80 \
+#     -e REACT_APP_REGION_NAME="SAN Region" \
+#     -e APP_INSIGHTS_APP_ID=xxx \
+#     -e APP_INSIGHTS_API_KEY=xxx \
+#     -e AZURE_SUBSCRIPTION_ID=xxx \
+#     -e AZURE_RESOURCE_GROUP=xxx \
+#     -e AKS_CLUSTER_NAME=xxx \
+#     -e MYSQL_SERVER_NAME=xxx \
+#     -e LOG_ANALYTICS_AUTH_TOKEN=xxx \
+#     -e JWT_SECRET=xxx \
+#     -e ADMIN_PASSWORD=xxx \
+#     reddy321678/momo_combined:latest
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Stage 1: Extract frontend static files ────────────────────────────────────
+FROM reddy321678/momo_frontend:latest AS frontend-files
+
+# ── Stage 2: Extract backend Node.js app ─────────────────────────────────────
+FROM reddy321678/momo_backend:latest AS backend-files
+
+# ── Stage 3: Combined runtime image ──────────────────────────────────────────
+FROM node:18-alpine
+
+LABEL maintainer="NexGen APIM Team"
+LABEL description="NexGen APIM — Combined single container (frontend + backend)"
+
+# Install nginx and supervisord
+RUN apk add --no-cache nginx supervisor gettext
+
+# ── Copy backend from backend image ──────────────────────────────────────────
+WORKDIR /app/backend
+COPY --from=backend-files /usr/src/app /app/backend
+# Remove any baked-in .env — all config via runtime env vars
+RUN rm -f /app/backend/.env
+
+# ── Copy frontend static files from frontend image ───────────────────────────
+COPY --from=frontend-files /usr/share/nginx/html /usr/share/nginx/html
+
+# ── nginx config: serve frontend + proxy /api → backend ──────────────────────
+RUN cat > /etc/nginx/http.d/default.conf << 'NGINXEOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
+    gzip_min_length 1024;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # Proxy all /api/* calls to the Node.js backend on localhost:5000
+    location /api {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 180s;
+        proxy_connect_timeout 10s;
+    }
+
+    # Serve React SPA
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # No cache for config.js and index.html
+    location ~* (index\.html|config\.js)$ {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        expires 0;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    error_page 404 /index.html;
+}
+NGINXEOF
+
+# ── supervisord: manages both nginx and node ──────────────────────────────────
+RUN cat > /etc/supervisord.conf << 'SUPEOF'
+[supervisord]
+nodaemon=true
+logfile=/var/log/supervisord.log
+pidfile=/var/run/supervisord.pid
+loglevel=info
+
+[program:backend]
+command=node /app/backend/index.js
+directory=/app/backend
+autostart=true
+autorestart=true
+startretries=5
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+environment=PORT="5000",NODE_ENV="production"
+
+[program:nginx]
+command=nginx -g "daemon off;"
+autostart=true
+autorestart=true
+startretries=3
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+SUPEOF
+
+# ── Entrypoint: write config.js then start supervisord ───────────────────────
+COPY combined-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+RUN mkdir -p /app/shared
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD wget -qO- http://localhost/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
