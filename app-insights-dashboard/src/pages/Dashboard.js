@@ -685,12 +685,12 @@ const Dashboard = () => {
         <FailureCodeChart range={range} />
 
         {/* ── Pod Monitoring — Node Overview (moved to bottom) ── */}
-        <NodeCpuOverview />
+        {features.infrastructure !== false && <NodeCpuOverview />}
 
         {/* ── MySQL + Node Pool ── */}
-        <MySQLConnectionsCard />
-        <MySQLMetricsCharts />
-        <NodePoolChart />
+        {features.mysql !== false && <MySQLConnectionsCard />}
+        {features.mysql !== false && <MySQLMetricsCharts />}
+        {features.infrastructure !== false && <NodePoolChart />}
         </>)}
       </div>
     </div>

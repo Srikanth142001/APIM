@@ -43,8 +43,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ── Auth (public — no token required) ───────────────────────────────────────
+// ── Public endpoints (no auth required) ─────────────────────────────────────
 app.use("/api/auth", authRoutes);
+
+// ── Feature flags — public endpoint so frontend can check before login ──────
+app.get("/api/features", (req, res) => {
+  res.json({
+    mysql:          !!process.env.MYSQL_SERVER_NAME,
+    infrastructure: !!process.env.AKS_CLUSTER_NAME,
+    logAnalytics:   !!process.env.LOG_ANALYTICS_AUTH_TOKEN,
+    telegram:       !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+  });
+});
 
 // ── Protect all other /api/* routes ─────────────────────────────────────────
 app.use("/api", requireAuth);
@@ -95,17 +105,6 @@ app.post("/api/ml-scheduler/start", requireAuth, (req, res) => {
 app.post("/api/ml-scheduler/stop", requireAuth, (req, res) => {
   stopScheduler();
   res.json({ ok: true, status: getSchedulerStatus() });
-});
-
-// ── Feature flags — tells the frontend which optional features are enabled ────
-// Public endpoint (no auth) so the frontend can check before login
-app.get("/api/features", (req, res) => {
-  res.json({
-    mysql:          !!process.env.MYSQL_SERVER_NAME,
-    infrastructure: !!process.env.AKS_CLUSTER_NAME,
-    logAnalytics:   !!process.env.LOG_ANALYTICS_AUTH_TOKEN,
-    telegram:       !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-  });
 });
 
 const PORT = process.env.PORT || 5000;
