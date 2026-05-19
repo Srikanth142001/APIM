@@ -5,7 +5,7 @@
 # Build:
 #   docker build -f Dockerfile.combined.ci -t reddy321678/apim:latest .
 #
-# Run:
+# Run with Default Settings:
 #   docker run -d -p 8082:80 \
 #     -e REACT_APP_REGION_NAME="SAN Region" \
 #     -e APP_INSIGHTS_APP_ID=xxx \
@@ -15,6 +15,26 @@
 #     -e JWT_SECRET=xxx \
 #     -e ADMIN_PASSWORD=xxx \
 #     reddy321678/apim:latest
+#
+# Run with Custom Branding (Runtime Customization):
+#   docker run -d -p 8082:80 \
+#     -e PROJECT_NAME="MyCompany API Monitor" \
+#     -e PROJECT_LOGO="/custom-logo.png" \
+#     -e TOP_APIS_LIMIT="20" \
+#     -e REACT_APP_REGION_NAME="Production" \
+#     -e APP_INSIGHTS_APP_ID=xxx \
+#     -e APP_INSIGHTS_API_KEY=xxx \
+#     -e AZURE_SUBSCRIPTION_ID=xxx \
+#     -e AZURE_RESOURCE_GROUP=xxx \
+#     -e JWT_SECRET=xxx \
+#     -e ADMIN_PASSWORD=xxx \
+#     reddy321678/apim:latest
+#
+# Runtime Customization Features:
+#   - PROJECT_NAME: Application name shown in UI (default: "MoMo Insights")
+#   - PROJECT_LOGO: Logo path (default: "/momo.png")
+#   - TOP_APIS_LIMIT: Number of top APIs to show (default: "10")
+#   - These can be changed without rebuilding the image!
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Stage 1: Build Frontend ───────────────────────────────────────────────────
