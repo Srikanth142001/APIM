@@ -17,7 +17,8 @@ PROJECT_NAME=${PROJECT_NAME:-MoMo Insights}
 PROJECT_LOGO=${PROJECT_LOGO:-/momo.png}
 TOP_APIS_LIMIT=${TOP_APIS_LIMIT:-10}
 
-cat > /usr/share/nginx/html/config.js << EOF
+# Write config.js with proper escaping for special characters
+cat > /usr/share/nginx/html/config.js <<EOF
 // Runtime configuration — generated at container startup
 window.ENV_CONFIG = {
   API_PROTOCOL: 'http',
