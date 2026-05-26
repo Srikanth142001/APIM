@@ -13,8 +13,8 @@ const Login = () => {
   const isLight = themeKey === "light";
 
   // Read runtime config
-  const projectName = window.ENV_CONFIG?.PROJECT_NAME || "MoMo Insights";
-  const projectLogo = window.ENV_CONFIG?.PROJECT_LOGO || "/momo.png";
+  const projectName = window.ENV_CONFIG?.PROJECT_NAME || "CCMP";
+  const projectLogo = window.ENV_CONFIG?.PROJECT_LOGO || "https://upload.wikimedia.org/wikipedia/commons/2/28/Cricket_Wireless_%282014%29.svg";
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 

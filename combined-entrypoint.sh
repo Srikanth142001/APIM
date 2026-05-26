@@ -13,8 +13,8 @@ echo "=========================================="
 # Since nginx proxies /api → backend on localhost:5000,
 # the frontend uses relative /api calls — no hostname needed.
 REGION=${REACT_APP_REGION_NAME:-SAN Region}
-PROJECT_NAME=${PROJECT_NAME:-MoMo Insights}
-PROJECT_LOGO=${PROJECT_LOGO:-/momo.png}
+PROJECT_NAME=${PROJECT_NAME:-CCMP}
+PROJECT_LOGO=${PROJECT_LOGO:-https://upload.wikimedia.org/wikipedia/commons/2/28/Cricket_Wireless_%282014%29.svg}
 TOP_APIS_LIMIT=${TOP_APIS_LIMIT:-10}
 
 # Write config.js with proper escaping for special characters
