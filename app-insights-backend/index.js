@@ -37,6 +37,8 @@ const { startScheduler, stopScheduler, getStatus: getSchedulerStatus } = require
 const failuresPanel      = require("./routes/failuresPanel");
 const performancePanel   = require("./routes/performancePanel");
 const apiSearch          = require("./routes/apiSearch");
+// ── Custom Database Query ────────────────────────────────────────────────────
+const customDbRoutes     = require("./routes/customDbRoutes");
 
 dotenv.config();
 const app = express();
@@ -91,6 +93,8 @@ app.use("/api/telegram",            telegramRoutes);
 app.use("/api/failures-panel",      failuresPanel);
 app.use("/api/performance-panel",   performancePanel);
 app.use("/api/api-search",          apiSearch);
+// ── Custom Database Query ────────────────────────────────────────────────────
+app.use("/api/custom-db",           customDbRoutes);
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {

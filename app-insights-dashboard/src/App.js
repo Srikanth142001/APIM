@@ -8,6 +8,7 @@ import OutageViewPage from "./pages/OutageViewPage";
 import IncidentFormPage from "./pages/IncidentFormPage";
 import FailuresPanel from "./pages/FailuresPanel";
 import PerformancePanel from "./pages/PerfPanel";
+import CustomDbQuery from "./pages/CustomDbQuery";
 import Sidebar from "./components/ui/Sidebar";
 import { isTokenValid } from "./config/axiosSetup";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -63,6 +64,9 @@ function AppRoutes() {
         } />
         <Route path="/performance" element={
           <ProtectedRoute><AppLayout><PerformancePanel /></AppLayout></ProtectedRoute>
+        } />
+        <Route path="/custom-db" element={
+          <ProtectedRoute><AppLayout><CustomDbQuery /></AppLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>

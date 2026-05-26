@@ -1,0 +1,355 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apim
+  labels:
+    name: apim
+    environment: production
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apim-config
+  namespace: apim
+data:
+  REGION_NAME: "SAN Region"
+  ENVIRONMENT: "production"
+  PORT: "5000"
+  NODE_ENV: "production"
+  ENABLE_ML_ALERTS: "true"
+  ML_ALERT_THRESHOLD: "0.8"
+  ADMIN_USERNAME: "admin"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: apim-secrets
+  namespace: apim
+type: Opaque
+stringData:
+  # ── Azure App Insights ────────────────────────────────────────────────────
+  APP_INSIGHTS_APP_ID: "your-app-insights-application-id"
+  APP_INSIGHTS_API_KEY: "your-app-insights-api-key"
+  
+  # ── Azure Infrastructure ──────────────────────────────────────────────────
+  AZURE_SUBSCRIPTION_ID: "your-azure-subscription-id"
+  AZURE_RESOURCE_GROUP: "your-resource-group-name"
+  AKS_CLUSTER_NAME: "your-aks-cluster-name"
+  MYSQL_SERVER_NAME: "your-mysql-server-name"
+  
+  # ── Log Analytics ─────────────────────────────────────────────────────────
+  LOG_ANALYTICS_WORKSPACE_ID: "your-log-analytics-workspace-id"
+  LOG_ANALYTICS_AUTH_TOKEN: "your-log-analytics-bearer-token"
+  
+  # ── Authentication ────────────────────────────────────────────────────────
+  JWT_SECRET: "your-strong-random-jwt-secret-min-32-chars"
+  ADMIN_PASSWORD: "your-secure-admin-password"
+  
+  # ── Telegram (Optional) ───────────────────────────────────────────────────
+  TELEGRAM_BOT_TOKEN: ""
+  TELEGRAM_CHAT_ID: ""
+  
+  # ── WhatsApp (Optional) ───────────────────────────────────────────────────
+  WHATSAPP_API_URL: ""
+  WHATSAPP_API_KEY: ""
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: apim-data-pvc
+  namespace: apim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apim-combined
+  namespace: apim
+  labels:
+    app: apim
+    component: combined
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: apim
+      component: combined
+  template:
+    metadata:
+      labels:
+        app: apim
+        component: combined
+        version: v1
+    spec:
+      containers:
+      - name: apim
+        image: reddy321678/apim:latest
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        
+        env:
+        # ── From ConfigMap ──────────────────────────────────────────────────
+        - name: REACT_APP_REGION_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: REGION_NAME
+        - name: REACT_APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: ENVIRONMENT
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: PORT
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: NODE_ENV
+        - name: ENABLE_ML_ALERTS
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: ENABLE_ML_ALERTS
+        - name: ML_ALERT_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: ML_ALERT_THRESHOLD
+        - name: ADMIN_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: apim-config
+              key: ADMIN_USERNAME
+        
+        # ── From Secrets ────────────────────────────────────────────────────
+        - name: APP_INSIGHTS_APP_ID
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: APP_INSIGHTS_APP_ID
+        - name: APP_INSIGHTS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: APP_INSIGHTS_API_KEY
+        - name: AZURE_SUBSCRIPTION_ID
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: AZURE_SUBSCRIPTION_ID
+        - name: AZURE_RESOURCE_GROUP
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: AZURE_RESOURCE_GROUP
+        - name: AKS_CLUSTER_NAME
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: AKS_CLUSTER_NAME
+        - name: MYSQL_SERVER_NAME
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: MYSQL_SERVER_NAME
+        - name: LOG_ANALYTICS_WORKSPACE_ID
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: LOG_ANALYTICS_WORKSPACE_ID
+        - name: LOG_ANALYTICS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: LOG_ANALYTICS_AUTH_TOKEN
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: JWT_SECRET
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: ADMIN_PASSWORD
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: TELEGRAM_BOT_TOKEN
+        - name: TELEGRAM_CHAT_ID
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: TELEGRAM_CHAT_ID
+        - name: WHATSAPP_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: WHATSAPP_API_URL
+        - name: WHATSAPP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: apim-secrets
+              key: WHATSAPP_API_KEY
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        volumeMounts:
+        - name: apim-data
+          mountPath: /app/shared
+        - name: apim-logs
+          mountPath: /var/log
+      
+      volumes:
+      - name: apim-data
+        persistentVolumeClaim:
+          claimName: apim-data-pvc
+      - name: apim-logs
+        emptyDir: {}
+      
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apim-service
+  namespace: apim
+  labels:
+    app: apim
+    component: combined
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: apim
+    component: combined
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apim-service-nodeport
+  namespace: apim
+  labels:
+    app: apim
+    component: combined
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30082
+    protocol: TCP
+    name: http
+  selector:
+    app: apim
+    component: combined
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: apim-hpa
+  namespace: apim
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: apim-combined
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apim-ingress
+  namespace: apim
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  tls:
+  - hosts:
+    - apim.yourdomain.com
+    secretName: apim-tls-secret
+  rules:
+  - host: apim.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: apim-service
+            port:
+              number: 80

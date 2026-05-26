@@ -16,6 +16,7 @@ const ALL_NAV = [
   { label: "Performance",     icon: FaTachometerAlt,       path: "/performance",             section: "monitoring", feature: null },
   { label: "Infrastructure",  icon: FaServer,              path: "/dashboard?tab=infra",     section: "monitoring", feature: "infrastructure" },
   { label: "MySQL",           icon: FaDatabase,            path: "/dashboard?tab=mysql",     section: "monitoring", feature: "mysql" },
+  { label: "Custom DB Query", icon: FaDatabase,            path: "/custom-db",               section: "monitoring", feature: null },
   { label: "Alerts",          icon: FaBell,                path: "/dashboard?tab=alerts",    section: "monitoring", feature: null },
   { label: "ML Alerts",       icon: FaNetworkWired,        path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
   { label: "Outages",         icon: FaExclamationTriangle, path: "/outages",                 section: "incidents",  feature: null },

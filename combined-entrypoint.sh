@@ -13,6 +13,9 @@ echo "=========================================="
 # Since nginx proxies /api → backend on localhost:5000,
 # the frontend uses relative /api calls — no hostname needed.
 REGION=${REACT_APP_REGION_NAME:-SAN Region}
+PROJECT_NAME=${PROJECT_NAME:-MoMo Insights}
+PROJECT_LOGO=${PROJECT_LOGO:-/momo.png}
+TOP_APIS_LIMIT=${TOP_APIS_LIMIT:-10}
 
 cat > /usr/share/nginx/html/config.js << EOF
 // Runtime configuration — generated at container startup
@@ -20,11 +23,18 @@ window.ENV_CONFIG = {
   API_PROTOCOL: 'http',
   API_HOSTNAME: '',
   API_PORT:     '',
-  REGION_NAME:  '${REGION}'
+  REGION_NAME:  '${REGION}',
+  PROJECT_NAME: '${PROJECT_NAME}',
+  PROJECT_LOGO: '${PROJECT_LOGO}',
+  TOP_APIS_LIMIT: '${TOP_APIS_LIMIT}'
 };
 EOF
 
-echo "✅ Frontend config.js written (region: ${REGION})"
+echo "✅ Frontend config.js written"
+echo "   Region: ${REGION}"
+echo "   Project: ${PROJECT_NAME}"
+echo "   Logo: ${PROJECT_LOGO}"
+echo "   Top APIs Limit: ${TOP_APIS_LIMIT}"
 
 # ── Validate required backend env vars ────────────────────────────────────────
 if [ -z "$APP_INSIGHTS_APP_ID" ] || [ -z "$APP_INSIGHTS_API_KEY" ]; then
