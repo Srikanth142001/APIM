@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { useTheme } from '../../context/ThemeContext';
+import { FaSync, FaEdit, FaCopy, FaTrash, FaExpand } from 'react-icons/fa';
 import TableViz from './visualizations/TableViz';
 import StatViz from './visualizations/StatViz';
 import LineChartViz from './visualizations/LineChartViz';
@@ -9,6 +11,7 @@ import PieChartViz from './visualizations/PieChartViz';
 import GaugeViz from './visualizations/GaugeViz';
 
 const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
+  const { T } = useTheme();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -96,59 +99,165 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg h-full flex flex-col border border-gray-200 dark:border-gray-700">
+    <div style={{ 
+      background: T.cardBg, 
+      borderRadius: '12px', 
+      boxShadow: T.shadow,
+      border: `1px solid ${T.border}`,
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden',
+      transition: 'all 0.2s'
+    }}>
       {/* Header */}
-      <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '16px 20px', 
+        borderBottom: `1px solid ${T.border}`,
+        background: T.cardBg
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ 
+            fontSize: '15px', 
+            fontWeight: 600, 
+            color: T.text, 
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
             {panel.title}
           </h3>
           {lastUpdate && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div style={{ fontSize: '12px', color: T.dim, marginTop: '4px' }}>
               Updated: {lastUpdate.toLocaleTimeString()}
-              {loading && <span className="ml-2 text-blue-600">⟳ Refreshing...</span>}
+              {loading && <span style={{ marginLeft: '8px', color: '#667eea' }}>⟳ Refreshing...</span>}
             </div>
           )}
         </div>
-        <div className="flex gap-1 ml-2">
+        <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
           <button
             onClick={executeQuery}
             disabled={loading}
-            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition disabled:opacity-50"
+            style={{
+              padding: '8px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: loading ? T.dim : '#667eea',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              opacity: loading ? 0.5 : 1
+            }}
             title="Refresh"
+            onMouseOver={(e) => !loading && (e.currentTarget.style.background = T.hoverBg)}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <span className={loading ? 'inline-block animate-spin' : ''}>🔄</span>
+            <FaSync style={{ fontSize: '14px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           </button>
           <button
             onClick={() => onEdit(panel)}
-            className="p-1.5 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+            style={{
+              padding: '8px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: T.dim,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s'
+            }}
             title="Edit"
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = T.hoverBg;
+              e.currentTarget.style.color = T.text;
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = T.dim;
+            }}
           >
-            ✏️
+            <FaEdit style={{ fontSize: '14px' }} />
           </button>
           <button
             onClick={() => onDuplicate(panel.id)}
-            className="p-1.5 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+            style={{
+              padding: '8px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: T.dim,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s'
+            }}
             title="Duplicate"
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = T.hoverBg;
+              e.currentTarget.style.color = T.text;
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = T.dim;
+            }}
           >
-            📋
+            <FaCopy style={{ fontSize: '14px' }} />
           </button>
           <button
             onClick={() => onDelete(panel.id)}
-            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
+            style={{
+              padding: '8px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: T.dim,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s'
+            }}
             title="Delete"
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+              e.currentTarget.style.color = '#ef4444';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = T.dim;
+            }}
           >
-            🗑️
+            <FaTrash style={{ fontSize: '14px' }} />
           </button>
         </div>
       </div>
 
       {/* Visualization */}
-      <div className="flex-1 min-h-0 p-2">
+      <div style={{ flex: 1, minHeight: 0, padding: '16px', overflow: 'auto' }}>
         {renderVisualization()}
       </div>
     </div>
   );
 };
+
+// Add keyframes for spin animation
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(style);
 
 export default Panel;
