@@ -23,7 +23,7 @@ const ConnectionManager = ({ onClose }) => {
 
   const loadConnections = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/custom-db/connections`);
+      const response = await axios.get(`${API_BASE_URL}/api/custom-db/connections`);
       if (response.data.success) {
         setConnections(response.data.connections);
       }
@@ -35,7 +35,7 @@ const ConnectionManager = ({ onClose }) => {
   const handleTestConnection = async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/custom-db/test-connection`, formData);
+      const response = await axios.post(`${API_BASE_URL}/api/custom-db/connections/test`, formData);
       if (response.data.success) {
         alert(`✅ Connection successful!\n\n${response.data.version}`);
       } else {
@@ -57,7 +57,7 @@ const ConnectionManager = ({ onClose }) => {
     setLoading(true);
     try {
       const connId = formData.id || `conn_${Date.now()}`;
-      await axios.post(`${API_BASE_URL}/custom-db/connections`, {
+      await axios.post(`${API_BASE_URL}/api/custom-db/connections`, {
         ...formData,
         id: connId
       });
@@ -88,7 +88,7 @@ const ConnectionManager = ({ onClose }) => {
     }
 
     try {
-      await axios.delete(`${API_BASE_URL}/custom-db/connections/${connectionId}`);
+      await axios.delete(`${API_BASE_URL}/api/custom-db/connections/${connectionId}`);
       alert('✅ Connection deleted');
       loadConnections();
     } catch (err) {

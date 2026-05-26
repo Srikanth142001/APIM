@@ -25,7 +25,7 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
 
   const loadConnections = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/custom-db/connections`);
+      const response = await axios.get(`${API_BASE_URL}/api/custom-db/connections`);
       if (response.data.success) {
         setConnections(response.data.connections);
         if (!formData.connectionId && response.data.connections.length > 0) {
@@ -48,7 +48,7 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
     setTestResult(null);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/custom-db/query`, {
+      const response = await axios.post(`${API_BASE_URL}/api/custom-db/query`, {
         connectionId: formData.connectionId,
         query: formData.query
       });
@@ -75,10 +75,10 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
     try {
       if (panel) {
         // Update existing panel
-        await axios.put(`${API_BASE_URL}/custom-db/panels/${panel.id}`, formData);
+        await axios.put(`${API_BASE_URL}/api/custom-db/panels/${panel.id}`, formData);
       } else {
         // Create new panel
-        await axios.post(`${API_BASE_URL}/custom-db/dashboards/${dashboardId}/panels`, formData);
+        await axios.post(`${API_BASE_URL}/api/custom-db/dashboards/${dashboardId}/panels`, formData);
       }
       onClose();
     } catch (err) {

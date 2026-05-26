@@ -22,7 +22,7 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post(`${API_BASE_URL}/custom-db/panels/${panel.id}/execute`);
+      const response = await axios.post(`${API_BASE_URL}/api/custom-db/panels/${panel.id}/execute`);
       if (response.data.success) {
         setData(response.data);
         setLastUpdate(new Date());

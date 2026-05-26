@@ -54,6 +54,7 @@ RUN echo 'server {' > /etc/nginx/http.d/default.conf && \
     echo '    server_name localhost;' >> /etc/nginx/http.d/default.conf && \
     echo '    root /usr/share/nginx/html;' >> /etc/nginx/http.d/default.conf && \
     echo '    index index.html;' >> /etc/nginx/http.d/default.conf && \
+    echo '    client_max_body_size 10M;' >> /etc/nginx/http.d/default.conf && \
     echo '' >> /etc/nginx/http.d/default.conf && \
     echo '    gzip on;' >> /etc/nginx/http.d/default.conf && \
     echo '    gzip_types text/plain text/css application/json application/javascript text/xml;' >> /etc/nginx/http.d/default.conf && \
@@ -62,14 +63,15 @@ RUN echo 'server {' > /etc/nginx/http.d/default.conf && \
     echo '    add_header X-Frame-Options "SAMEORIGIN" always;' >> /etc/nginx/http.d/default.conf && \
     echo '    add_header X-Content-Type-Options "nosniff" always;' >> /etc/nginx/http.d/default.conf && \
     echo '' >> /etc/nginx/http.d/default.conf && \
-    echo '    # Proxy all /api/* calls to the Node.js backend on localhost:5000' >> /etc/nginx/http.d/default.conf && \
-    echo '    location /api/ {' >> /etc/nginx/http.d/default.conf && \
-    echo '        proxy_pass http://127.0.0.1:5000/api/;' >> /etc/nginx/http.d/default.conf && \
+    echo '    # Proxy all /api requests to backend' >> /etc/nginx/http.d/default.conf && \
+    echo '    location ~ ^/api/ {' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_pass http://127.0.0.1:5000;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_http_version 1.1;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header Host $host;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/http.d/default.conf && \
+    echo '        proxy_set_header Content-Type $content_type;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header Upgrade $http_upgrade;' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_set_header Connection "upgrade";' >> /etc/nginx/http.d/default.conf && \
     echo '        proxy_read_timeout 180s;' >> /etc/nginx/http.d/default.conf && \

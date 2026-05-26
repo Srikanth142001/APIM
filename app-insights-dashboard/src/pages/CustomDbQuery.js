@@ -30,7 +30,7 @@ const CustomDbQuery = () => {
 
   const loadDashboards = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/custom-db/dashboards`);
+      const response = await axios.get(`${API_BASE_URL}/api/custom-db/dashboards`);
       if (response.data.success) {
         setDashboards(response.data.dashboards);
       }
@@ -41,7 +41,7 @@ const CustomDbQuery = () => {
 
   const loadPanels = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/custom-db/dashboards/${selectedDashboard}/panels`);
+      const response = await axios.get(`${API_BASE_URL}/api/custom-db/dashboards/${selectedDashboard}/panels`);
       if (response.data.success) {
         setPanels(response.data.panels);
       }
@@ -64,7 +64,7 @@ const CustomDbQuery = () => {
     if (!window.confirm('Delete this panel?')) return;
     
     try {
-      await axios.delete(`${API_BASE_URL}/custom-db/panels/${panelId}`);
+      await axios.delete(`${API_BASE_URL}/api/custom-db/panels/${panelId}`);
       loadPanels();
     } catch (err) {
       alert('Failed to delete panel: ' + err.message);
@@ -73,7 +73,7 @@ const CustomDbQuery = () => {
 
   const handleDuplicatePanel = async (panelId) => {
     try {
-      await axios.post(`${API_BASE_URL}/custom-db/panels/${panelId}/duplicate`);
+      await axios.post(`${API_BASE_URL}/api/custom-db/panels/${panelId}/duplicate`);
       loadPanels();
     } catch (err) {
       alert('Failed to duplicate panel: ' + err.message);
@@ -87,7 +87,7 @@ const CustomDbQuery = () => {
     }
 
     try {
-      await axios.post(`${API_BASE_URL}/custom-db/dashboards`, {
+      await axios.post(`${API_BASE_URL}/api/custom-db/dashboards`, {
         name: newDashboardName,
         description: ''
       });
@@ -108,7 +108,7 @@ const CustomDbQuery = () => {
     if (!window.confirm('Delete this dashboard and all its panels?')) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/custom-db/dashboards/${selectedDashboard}`);
+      await axios.delete(`${API_BASE_URL}/api/custom-db/dashboards/${selectedDashboard}`);
       setSelectedDashboard('default');
       loadDashboards();
     } catch (err) {
@@ -118,7 +118,7 @@ const CustomDbQuery = () => {
 
   const handleExportDashboard = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/custom-db/dashboards/${selectedDashboard}/export`);
+      const response = await axios.get(`${API_BASE_URL}/api/custom-db/dashboards/${selectedDashboard}/export`);
       if (response.data.success) {
         const dataStr = JSON.stringify(response.data.data, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
