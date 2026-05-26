@@ -13,8 +13,8 @@ const Login = () => {
   const isLight = themeKey === "light";
 
   // Read runtime config
-  const projectName = window.APP_CONFIG?.PROJECT_NAME || "MoMo Insights";
-  const projectLogo = window.APP_CONFIG?.PROJECT_LOGO || "/momo.png";
+  const projectName = window.ENV_CONFIG?.PROJECT_NAME || "MoMo Insights";
+  const projectLogo = window.ENV_CONFIG?.PROJECT_LOGO || "/momo.png";
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
