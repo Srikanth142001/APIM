@@ -12,6 +12,10 @@ const Login = () => {
   const { T, themeKey } = useTheme();
   const isLight = themeKey === "light";
 
+  // Read runtime config
+  const projectName = window.APP_CONFIG?.PROJECT_NAME || "MoMo Insights";
+  const projectLogo = window.APP_CONFIG?.PROJECT_LOGO || "/momo.png";
+
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
@@ -83,10 +87,10 @@ const Login = () => {
               margin: "0 auto 16px",
               boxShadow: isLight ? "0 0 32px rgba(26,79,170,0.1)" : "0 0 32px rgba(87,148,242,0.15)",
             }}>
-              <img src="/momo.png" alt="Logo" style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover" }} />
+              <img src={projectLogo} alt="Logo" style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover" }} />
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>
-              MoMo Insights
+              {projectName}
             </h1>
             <p style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>
               Application Performance Dashboard
