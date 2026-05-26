@@ -9,7 +9,7 @@ const customDbService = require('../services/customDbService');
 const customDbPanelService = require('../services/customDbPanelService');
 
 // ── Test Database Connection ──────────────────────────────────────────────────
-router.post('/test-connection', async (req, res) => {
+router.post('/connections/test', async (req, res) => {
   try {
     const { host, port, database, username, password, ssl } = req.body;
 
