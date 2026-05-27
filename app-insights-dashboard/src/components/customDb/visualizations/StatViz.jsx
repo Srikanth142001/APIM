@@ -1,10 +1,6 @@
 import React, { useMemo } from 'react';
 
 const StatViz = ({ data, options = {} }) => {
-  if (!data || !data.rows || data.rows.length === 0) {
-    return <div className="p-4 text-center text-gray-500 dark:text-gray-400">No data available</div>;
-  }
-
   const {
     columnIndex = 0,
     aggregation = 'last', // last, first, sum, avg, min, max, count
@@ -18,6 +14,10 @@ const StatViz = ({ data, options = {} }) => {
 
   // Calculate the stat value based on aggregation
   const { value, trend } = useMemo(() => {
+    if (!data || !data.rows || data.rows.length === 0) {
+      return { value: null, trend: null };
+    }
+
     const colIdx = Math.min(columnIndex, data.fields.length - 1);
     const values = data.rows.map(row => row[colIdx]).filter(v => v !== null && v !== undefined);
     
@@ -62,6 +62,29 @@ const StatViz = ({ data, options = {} }) => {
     return { value: result, trend: trendValue };
   }, [data, columnIndex, aggregation, showTrend]);
 
+  // Generate sparkline data
+  const sparklineData = useMemo(() => {
+    if (!data || !data.rows || data.rows.length < 2 || !showSparkline) {
+      return null;
+    }
+    
+    const colIdx = Math.min(columnIndex, data.fields.length - 1);
+    const values = data.rows.map(row => parseFloat(row[colIdx]) || 0);
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    
+    // Normalize to 0-100 for SVG
+    const normalized = values.map(v => ((v - min) / range) * 100);
+    
+    return normalized;
+  }, [data, columnIndex, showSparkline]);
+
+  if (!data || !data.rows || data.rows.length === 0) {
+    return <div className="p-4 text-center text-gray-500 dark:text-gray-400">No data available</div>;
+  }
+
   const formatValue = (val) => {
     if (val === null || val === undefined) return 'N/A';
     if (typeof val === 'number') {
@@ -100,23 +123,6 @@ const StatViz = ({ data, options = {} }) => {
     if (trend < 0) return '↓';
     return '→';
   };
-
-  // Generate sparkline data
-  const sparklineData = useMemo(() => {
-    if (!showSparkline || data.rows.length < 2) return null;
-    
-    const colIdx = Math.min(columnIndex, data.fields.length - 1);
-    const values = data.rows.map(row => parseFloat(row[colIdx]) || 0);
-    
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    
-    // Normalize to 0-100 for SVG
-    const normalized = values.map(v => ((v - min) / range) * 100);
-    
-    return normalized;
-  }, [data, columnIndex, showSparkline]);
 
   const renderSparkline = () => {
     if (!sparklineData) return null;
