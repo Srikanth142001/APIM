@@ -4,6 +4,12 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+// Persistence file path
+const STORAGE_DIR = '/app/shared';
+const CONNECTIONS_FILE = path.join(STORAGE_DIR, 'db-connections.json');
 
 class CustomDbService {
   constructor() {
@@ -18,6 +24,57 @@ class CustomDbService {
     
     // Max connections per pool (prevent connection exhaustion)
     this.maxPoolSize = 5;
+    
+    // Load saved connections on startup
+    this.loadConnections();
+  }
+
+  /**
+   * Load connections from file
+   */
+  loadConnections() {
+    try {
+      if (fs.existsSync(CONNECTIONS_FILE)) {
+        const data = fs.readFileSync(CONNECTIONS_FILE, 'utf8');
+        const saved = JSON.parse(data);
+        
+        // Restore connections (but not pools - those will be created on first use)
+        for (const [id, config] of Object.entries(saved)) {
+          this.connections.set(id, {
+            ...config,
+            createdAt: new Date(config.createdAt),
+            lastUsed: new Date(config.lastUsed)
+          });
+        }
+        
+        console.log(`✅ Loaded ${this.connections.size} saved database connections`);
+      }
+    } catch (error) {
+      console.error('⚠️  Failed to load saved connections:', error.message);
+    }
+  }
+
+  /**
+   * Save connections to file
+   */
+  saveConnections() {
+    try {
+      // Ensure directory exists
+      if (!fs.existsSync(STORAGE_DIR)) {
+        fs.mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+
+      // Convert Map to object for JSON serialization
+      const data = {};
+      for (const [id, config] of this.connections.entries()) {
+        data[id] = config;
+      }
+
+      fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
+      console.log(`💾 Saved ${this.connections.size} database connections`);
+    } catch (error) {
+      console.error('⚠️  Failed to save connections:', error.message);
+    }
   }
 
   /**
@@ -76,6 +133,9 @@ class CustomDbService {
         createdAt: new Date(),
         lastUsed: new Date()
       });
+
+      // Save to file
+      this.saveConnections();
 
       console.log(`✅ Database connection created: ${connectionId}`);
       return { success: true, connectionId };
@@ -260,6 +320,10 @@ class CustomDbService {
       await pool.end();
       this.pools.delete(connectionId);
       this.connections.delete(connectionId);
+      
+      // Save to file
+      this.saveConnections();
+      
       console.log(`🔌 Connection closed: ${connectionId}`);
       return { success: true };
     }

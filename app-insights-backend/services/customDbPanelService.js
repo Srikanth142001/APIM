@@ -3,15 +3,94 @@
 // Manages saved queries, visualizations, and dashboard panels
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const fs = require('fs');
+const path = require('path');
+
+// Persistence file paths
+const STORAGE_DIR = '/app/shared';
+const DASHBOARDS_FILE = path.join(STORAGE_DIR, 'dashboards.json');
+const PANELS_FILE = path.join(STORAGE_DIR, 'panels.json');
+
 class CustomDbPanelService {
   constructor() {
     // Store dashboards and panels in memory
-    // In production, this should be stored in a database
     this.dashboards = new Map();
     this.panels = new Map();
     
-    // Initialize with a default dashboard
-    this.createDefaultDashboard();
+    // Load saved data
+    this.loadData();
+    
+    // Initialize with a default dashboard if none exist
+    if (this.dashboards.size === 0) {
+      this.createDefaultDashboard();
+    }
+  }
+
+  /**
+   * Load dashboards and panels from files
+   */
+  loadData() {
+    try {
+      // Load dashboards
+      if (fs.existsSync(DASHBOARDS_FILE)) {
+        const data = fs.readFileSync(DASHBOARDS_FILE, 'utf8');
+        const saved = JSON.parse(data);
+        for (const [id, dashboard] of Object.entries(saved)) {
+          this.dashboards.set(id, {
+            ...dashboard,
+            createdAt: new Date(dashboard.createdAt),
+            updatedAt: new Date(dashboard.updatedAt)
+          });
+        }
+        console.log(`✅ Loaded ${this.dashboards.size} dashboards`);
+      }
+
+      // Load panels
+      if (fs.existsSync(PANELS_FILE)) {
+        const data = fs.readFileSync(PANELS_FILE, 'utf8');
+        const saved = JSON.parse(data);
+        for (const [id, panel] of Object.entries(saved)) {
+          this.panels.set(id, {
+            ...panel,
+            createdAt: new Date(panel.createdAt),
+            updatedAt: new Date(panel.updatedAt)
+          });
+        }
+        console.log(`✅ Loaded ${this.panels.size} panels`);
+      }
+    } catch (error) {
+      console.error('⚠️  Failed to load saved data:', error.message);
+    }
+  }
+
+  /**
+   * Save dashboards and panels to files
+   */
+  saveData() {
+    try {
+      // Ensure directory exists
+      if (!fs.existsSync(STORAGE_DIR)) {
+        fs.mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+
+      // Save dashboards
+      const dashboardsData = {};
+      for (const [id, dashboard] of this.dashboards.entries()) {
+        dashboardsData[id] = dashboard;
+      }
+      fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboardsData, null, 2), 'utf8');
+
+      // Save panels
+      const panelsData = {};
+      for (const [id, panel] of this.panels.entries()) {
+        panelsData[id] = panel;
+      }
+      fs.writeFileSync(PANELS_FILE, JSON.stringify(panelsData, null, 2), 'utf8');
+
+      console.log(`💾 Saved ${this.dashboards.size} dashboards and ${this.panels.size} panels`);
+    } catch (error) {
+      console.error('⚠️  Failed to save data:', error.message);
+    }
   }
 
   /**
@@ -27,6 +106,7 @@ class CustomDbPanelService {
       updatedAt: new Date()
     };
     this.dashboards.set('default', defaultDashboard);
+    this.saveData();
   }
 
   /**
@@ -43,6 +123,7 @@ class CustomDbPanelService {
       updatedAt: new Date()
     };
     this.dashboards.set(id, dashboard);
+    this.saveData();
     return dashboard;
   }
 
@@ -75,6 +156,7 @@ class CustomDbPanelService {
       updatedAt: new Date()
     });
     
+    this.saveData();
     return dashboard;
   }
 
@@ -97,6 +179,7 @@ class CustomDbPanelService {
     });
     
     this.dashboards.delete(id);
+    this.saveData();
     return { success: true };
   }
 
@@ -129,6 +212,7 @@ class CustomDbPanelService {
     dashboard.panels.push(id);
     dashboard.updatedAt = new Date();
 
+    this.saveData();
     return panel;
   }
 
@@ -172,6 +256,7 @@ class CustomDbPanelService {
       updatedAt: new Date()
     });
 
+    this.saveData();
     return panel;
   }
 
@@ -192,6 +277,7 @@ class CustomDbPanelService {
     }
 
     this.panels.delete(id);
+    this.saveData();
     return { success: true };
   }
 
@@ -224,6 +310,7 @@ class CustomDbPanelService {
       dashboard.updatedAt = new Date();
     }
 
+    this.saveData();
     return newPanel;
   }
 
@@ -271,6 +358,7 @@ class CustomDbPanelService {
       });
     });
 
+    this.saveData();
     return dashboard;
   }
 }
