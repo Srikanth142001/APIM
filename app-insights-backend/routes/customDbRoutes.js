@@ -13,10 +13,10 @@ router.post('/connections/test', async (req, res) => {
   try {
     const { host, port, database, username, password, ssl } = req.body;
 
-    if (!host || !database || !username || !password) {
+    if (!host || !database || !username) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: host, database, username, password'
+        message: 'Missing required fields: host, database, username'
       });
     }
 
@@ -45,10 +45,10 @@ router.post('/connections', async (req, res) => {
   try {
     const { id, name, host, port, database, username, password, ssl } = req.body;
 
-    if (!id || !name || !host || !database || !username || !password) {
+    if (!id || !name || !host || !database || !username) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields'
+        message: 'Missing required fields: id, name, host, database, username'
       });
     }
 

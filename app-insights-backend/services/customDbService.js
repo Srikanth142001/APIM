@@ -358,7 +358,7 @@ class CustomDbService {
     if (!config.host) throw new Error('Host is required');
     if (!config.database) throw new Error('Database name is required');
     if (!config.username) throw new Error('Username is required');
-    if (!config.password) throw new Error('Password is required');
+    // Password is optional (some databases allow passwordless connections)
     
     // Validate port
     const port = config.port || 5432;

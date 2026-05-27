@@ -49,8 +49,8 @@ const ConnectionManager = ({ onClose }) => {
   };
 
   const handleSaveConnection = async () => {
-    if (!formData.name || !formData.host || !formData.database || !formData.username || !formData.password) {
-      alert('Please fill in all required fields');
+    if (!formData.name || !formData.host || !formData.database || !formData.username) {
+      alert('Please fill in all required fields (name, host, database, username)');
       return;
     }
 
@@ -224,14 +224,14 @@ const ConnectionManager = ({ onClose }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Password *
+                    Password
                   </label>
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="••••••••"
+                    placeholder="••••••••  (optional for passwordless auth)"
                   />
                 </div>
               </div>
