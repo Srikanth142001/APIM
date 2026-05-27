@@ -214,6 +214,121 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
             </select>
           </div>
 
+          {/* Visualization Options - Stat */}
+          {formData.visualizationType === 'stat' && testResult && (
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/50">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Stat Options</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {/* Column Selection */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Column to Display
+                  </label>
+                  <select
+                    value={formData.options.columnIndex || 0}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, columnIndex: parseInt(e.target.value) }
+                    })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    {testResult.fields.map((field, idx) => (
+                      <option key={idx} value={idx}>{field.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Aggregation */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Aggregation
+                  </label>
+                  <select
+                    value={formData.options.aggregation || 'last'}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, aggregation: e.target.value }
+                    })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="last">Last Value</option>
+                    <option value="first">First Value</option>
+                    <option value="sum">Sum</option>
+                    <option value="avg">Average</option>
+                    <option value="min">Minimum</option>
+                    <option value="max">Maximum</option>
+                    <option value="count">Count</option>
+                  </select>
+                </div>
+
+                {/* Unit */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.options.unit || ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, unit: e.target.value }
+                    })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="e.g., ms, %, GB"
+                  />
+                </div>
+
+                {/* Decimals */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Decimal Places
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={formData.options.decimals || 0}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, decimals: parseInt(e.target.value) }
+                    })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Additional Options */}
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.options.showSparkline || false}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, showSparkline: e.target.checked }
+                    })}
+                    className="mr-2"
+                  />
+                  Show Sparkline (mini trend chart)
+                </label>
+                
+                <label className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.options.showTrend || false}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      options: { ...formData.options, showTrend: e.target.checked }
+                    })}
+                    className="mr-2"
+                  />
+                  Show Trend (% change)
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Test Result */}
           {testResult && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
