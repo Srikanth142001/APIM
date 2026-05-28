@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 import { useTheme } from '../context/ThemeContext';
 import KqlPanel from '../components/kql/KqlPanel';
 import KqlPanelEditor from '../components/kql/KqlPanelEditor';
+import PanelGrid from '../components/shared/PanelGrid';
 import {
   FaPlus, FaTrash, FaDownload, FaUpload, FaChartLine,
   FaLock, FaSync, FaSearch,
@@ -185,6 +186,18 @@ const KqlDashboard = () => {
       }
     } catch (err) { alert('Import failed: ' + (err.response?.data?.message || err.message)); }
   };
+
+  const handleLayoutChange = useCallback(async (panelId, changes) => {
+    try {
+      const panel = panels.find(p => p.id === panelId);
+      if (!panel) return;
+      await axios.put(`${API_BASE_URL}/api/kql/panels/${panelId}`, {
+        position: { ...panel.position, ...changes },
+      });
+    } catch (err) {
+      console.warn('Failed to save layout:', err.message);
+    }
+  }, [panels]);
 
   const filtered = panels.filter(p => !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -386,36 +399,21 @@ const KqlDashboard = () => {
         ) : filtered.length === 0 ? (
           <EmptyState isAdmin={isAdmin} onAdd={() => { setEditingPanel(null); setShowPanelEditor(true); }} T={T} />
         ) : (
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 14,
-            alignItems: 'flex-start',
-          }}>
-            {filtered.map(panel => {
-              // If panel has a saved pixel width, use it; otherwise default to ~half the container
-              const savedW = panel.position?.pixelW;
-              return (
-                <div
-                  key={panel.id}
-                  style={{
-                    flex: savedW ? `0 0 ${savedW}px` : '1 1 500px',
-                    minWidth: savedW ? `${savedW}px` : '500px',
-                    maxWidth: savedW ? `${savedW}px` : '100%',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <KqlPanel
-                    panel={panel}
-                    isAdmin={isAdmin}
-                    onEdit={p => { setEditingPanel(p); setShowPanelEditor(true); }}
-                    onDelete={handleDeletePanel}
-                    onDuplicate={handleDuplicatePanel}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          <PanelGrid
+            panels={filtered}
+            isAdmin={isAdmin}
+            onLayoutChange={handleLayoutChange}
+            renderPanel={(panel, { height }) => (
+              <KqlPanel
+                panel={panel}
+                height={height}
+                isAdmin={isAdmin}
+                onEdit={p => { setEditingPanel(p); setShowPanelEditor(true); }}
+                onDelete={handleDeletePanel}
+                onDuplicate={handleDuplicatePanel}
+              />
+            )}
+          />
         )}
       </div>
 

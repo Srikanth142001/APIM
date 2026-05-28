@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 import Panel from '../components/customDb/Panel';
 import ConnectionManager from '../components/customDb/ConnectionManager';
 import PanelEditor from '../components/customDb/PanelEditor';
+import PanelGrid from '../components/shared/PanelGrid';
 import { useTheme } from '../context/ThemeContext';
 import {
   FaDatabase, FaPlus, FaDownload, FaTrash, FaCog,
@@ -107,6 +108,18 @@ const CustomDbQuery = () => {
   const handleDuplicatePanel = async (id) => {
     try { await axios.post(`${API_BASE_URL}/api/custom-db/panels/${id}/duplicate`); loadPanels(); }
     catch (err) { alert('Failed: ' + err.message); }
+  };
+
+  const handleLayoutChange = async (panelId, changes) => {
+    try {
+      const panel = panels.find(p => p.id === panelId);
+      if (!panel) return;
+      await axios.put(`${API_BASE_URL}/api/custom-db/panels/${panelId}`, {
+        position: { ...panel.position, ...changes },
+      });
+    } catch (err) {
+      console.warn('Failed to save layout:', err.message);
+    }
   };
 
   const filtered = panels.filter(p => !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -270,26 +283,20 @@ const CustomDbQuery = () => {
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
-            {filtered.map(panel => {
-              const savedW = panel.position?.pixelW;
-              return (
-                <div key={panel.id} style={{
-                  flex: savedW ? `0 0 ${savedW}px` : '1 1 500px',
-                  minWidth: savedW ? `${savedW}px` : '500px',
-                  maxWidth: savedW ? `${savedW}px` : '100%',
-                  boxSizing: 'border-box',
-                }}>
-                  <Panel
-                    panel={panel}
-                    onEdit={p => { setEditingPanel(p); setShowPanelEditor(true); }}
-                    onDelete={handleDeletePanel}
-                    onDuplicate={handleDuplicatePanel}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          <PanelGrid
+            panels={filtered}
+            isAdmin={true}
+            onLayoutChange={handleLayoutChange}
+            renderPanel={(panel, { height }) => (
+              <Panel
+                panel={panel}
+                height={height}
+                onEdit={p => { setEditingPanel(p); setShowPanelEditor(true); }}
+                onDelete={handleDeletePanel}
+                onDuplicate={handleDuplicatePanel}
+              />
+            )}
+          />
         )}
       </div>
 

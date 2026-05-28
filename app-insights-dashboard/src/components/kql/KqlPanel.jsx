@@ -11,11 +11,6 @@ import PieChartViz from '../customDb/visualizations/PieChartViz';
 import GaugeViz from '../customDb/visualizations/GaugeViz';
 import RawLogsViewer from './RawLogsViewer';
 
-const MIN_W = 320;
-const MIN_H = 180;
-const MAX_H = 1200;
-const DEFAULT_H = 300;
-
 /* ── tiny icon button ─────────────────────────────────────────────────────── */
 const PBtn = ({ onClick, disabled, title, children, T, danger, active }) => (
   <button onClick={onClick} disabled={disabled} title={title}
@@ -35,8 +30,8 @@ const PBtn = ({ onClick, disabled, title, children, T, danger, active }) => (
   </button>
 );
 
-/* ══ main component ═══════════════════════════════════════════════════════════ */
-const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
+/* ══ KqlPanel — resize/drag handled by PanelGrid parent ══════════════════════ */
+const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate, height }) => {
   const { T } = useTheme();
   const [queryResults, setQueryResults] = useState(null);
   const [loading,      setLoading]      = useState(false);
@@ -44,33 +39,9 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
   const [lastUpdate,   setLastUpdate]   = useState(null);
   const [expanded,     setExpanded]     = useState(false);
   const [showLogs,     setShowLogs]     = useState(false);
-  const [saving,       setSaving]       = useState(false);
 
-  /* ── resize — init from saved panel.position.pixelH / pixelW ── */
-  const [panelH,   setPanelH]   = useState(panel.position?.pixelH || Math.max(DEFAULT_H, (panel.position?.h || 4) * 72));
-  const [panelW,   setPanelW]   = useState(panel.position?.pixelW || null);
-  const [resizing, setResizing] = useState(null); // 'v' | 'h' | 'corner' | null
+  const intervalRef = useRef(null);
 
-  const resizeRef    = useRef({ startX: 0, startY: 0, startW: 0, startH: 0 });
-  const containerRef = useRef(null);
-  const intervalRef  = useRef(null);
-  const saveTimerRef = useRef(null);
-
-  /* ── persist size to backend ── */
-  const persistSize = useCallback(async (h, w) => {
-    setSaving(true);
-    try {
-      await axios.put(`${API_BASE_URL}/api/kql/panels/${panel.id}`, {
-        position: { ...panel.position, pixelH: Math.round(h), pixelW: w ? Math.round(w) : null },
-      });
-    } catch (err) {
-      console.warn('Failed to save panel size:', err.message);
-    } finally {
-      setSaving(false);
-    }
-  }, [panel.id, panel.position]);
-
-  /* ── query execution ── */
   const executeQueries = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -90,56 +61,8 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [panel.id, panel.refreshInterval, executeQueries]);
 
-  /* ── resize start ── */
-  const startResize = useCallback((type) => (e) => {
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    resizeRef.current = {
-      startX: e.clientX, startY: e.clientY,
-      startW: rect?.width || panelW || 500,
-      startH: panelH,
-    };
-    setResizing(type);
-  }, [panelH, panelW]);
+  const displayH = expanded ? 600 : (height || 300);
 
-  /* ── resize move + up ── */
-  useEffect(() => {
-    if (!resizing) return;
-    let latestH = panelH;
-    let latestW = panelW;
-
-    const onMove = (e) => {
-      const dx = e.clientX - resizeRef.current.startX;
-      const dy = e.clientY - resizeRef.current.startY;
-      if (resizing === 'v' || resizing === 'corner') {
-        latestH = Math.min(MAX_H, Math.max(MIN_H, resizeRef.current.startH + dy));
-        setPanelH(latestH);
-      }
-      if (resizing === 'h' || resizing === 'corner') {
-        latestW = Math.max(MIN_W, resizeRef.current.startW + dx);
-        setPanelW(latestW);
-      }
-    };
-
-    const onUp = () => {
-      setResizing(null);
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => persistSize(latestH, latestW), 400);
-    };
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup',   onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup',   onUp);
-    };
-  }, [resizing, panelH, panelW, persistSize]);
-
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
-
-  const displayH = expanded ? 600 : panelH;
-
-  /* ── convert API result → {fields, rows} ── */
   const getTableData = () => {
     if (!queryResults) return null;
     const table = queryResults.queries
@@ -173,23 +96,14 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
         </div>
       );
     }
-    if (!queryResults) {
-      return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
-    }
+    if (!queryResults) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
 
     const viz = panel.visualizationType;
     if (viz === 'timeseries' || viz === 'area') {
-      return (
-        <TimeSeriesChart
-          queryResults={queryResults.queries ? [queryResults] : [queryResults]}
-          options={{ ...panel.options, chartType: viz === 'area' ? 'area' : 'line' }}
-        />
-      );
+      return <TimeSeriesChart queryResults={queryResults.queries ? [queryResults] : [queryResults]} options={{ ...panel.options, chartType: viz === 'area' ? 'area' : 'line' }} />;
     }
     const td = getTableData();
-    if (!td) {
-      return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data returned</div>;
-    }
+    if (!td) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data returned</div>;
     switch (viz) {
       case 'table': return <TableViz    data={td} options={panel.options} />;
       case 'stat':  return <StatViz     data={td} options={panel.options} />;
@@ -200,45 +114,23 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
     }
   };
 
-  /* ── resize handle base style ── */
-  const hBase = (cursor, pos) => ({
-    position: 'absolute', ...pos, cursor, zIndex: 10,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
-
-  const gripDots = (dir, active) => (
-    <div style={{ display: 'flex', flexDirection: dir === 'h' ? 'column' : 'row', gap: 3, pointerEvents: 'none' }}>
-      {[0,1,2,3,4].map(i => (
-        <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: active ? T.blue : T.border2 }} />
-      ))}
-    </div>
-  );
-
   return (
     <>
-      <div ref={containerRef} style={{
+      <div style={{
         background: T.surface,
-        border: `1px solid ${resizing ? T.blue : T.border}`,
+        border: `1px solid ${T.border}`,
         display: 'flex', flexDirection: 'column',
-        height: displayH,
-        width: '100%',   // always fill the wrapper — wrapper controls actual width
+        height: displayH, width: '100%',
         overflow: 'hidden',
-        transition: resizing ? 'none' : 'border-color 0.15s',
         position: 'relative',
-        userSelect: resizing ? 'none' : 'auto',
         boxSizing: 'border-box',
       }}>
-
-        {/* ── header ── */}
+        {/* header */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderBottom: `1px solid ${T.border}`, background: T.panel, gap: 8, flexShrink: 0 }}>
-          {loading && (
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: T.blue, flexShrink: 0, animation: 'kql-pulse 1s ease-in-out infinite', display: 'inline-block' }} />
-          )}
+          {loading && <span style={{ width: 7, height: 7, borderRadius: '50%', background: T.blue, flexShrink: 0, animation: 'kql-pulse 1s ease-in-out infinite', display: 'inline-block' }} />}
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {panel.title}
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.title}</div>
             {lastUpdate && (
               <div style={{ fontSize: 10, color: T.dim, display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                 <FaClock style={{ fontSize: 9 }} />
@@ -247,15 +139,6 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
               </div>
             )}
           </div>
-
-          {resizing && (
-            <span style={{ fontSize: 10, color: T.blue, fontVariantNumeric: 'tabular-nums' }}>
-              {panelW ? `${Math.round(panelW)}w × ` : ''}{Math.round(displayH)}h px
-            </span>
-          )}
-          {saving && !resizing && (
-            <span style={{ fontSize: 10, color: T.dim }}>saving…</span>
-          )}
 
           <div style={{ display: 'flex', gap: 0, flexShrink: 0 }}>
             <PBtn onClick={executeQueries} disabled={loading} title="Refresh" T={T}>
@@ -275,63 +158,20 @@ const KqlPanel = ({ panel, isAdmin, onEdit, onDelete, onDuplicate }) => {
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </PBtn>
-                <PBtn onClick={() => onDuplicate(panel.id)} title="Duplicate" T={T}>
-                  <FaCopy style={{ fontSize: 11 }} />
-                </PBtn>
-                <PBtn onClick={() => onDelete(panel.id)} title="Delete" T={T} danger>
-                  <FaTrash style={{ fontSize: 11 }} />
-                </PBtn>
+                <PBtn onClick={() => onDuplicate(panel.id)} title="Duplicate" T={T}><FaCopy style={{ fontSize: 11 }} /></PBtn>
+                <PBtn onClick={() => onDelete(panel.id)} title="Delete" T={T} danger><FaTrash style={{ fontSize: 11 }} /></PBtn>
               </>
             )}
           </div>
         </div>
 
-        {/* ── viz area ── */}
+        {/* viz */}
         <div style={{ flex: 1, minHeight: 0, padding: '10px 12px', overflow: 'hidden', background: T.chartBg }}>
           {renderViz()}
         </div>
-
-        {/* ── bottom handle (height) ── */}
-        {!expanded && (
-          <div onMouseDown={startResize('v')} title="Drag to resize height"
-            style={{ ...hBase('ns-resize', { bottom: 0, left: 0, right: 16, height: 8 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-            onMouseLeave={e => { if (resizing !== 'v') e.currentTarget.style.background = 'transparent'; }}
-          >
-            {gripDots('v', resizing === 'v' || resizing === 'corner')}
-          </div>
-        )}
-
-        {/* ── right handle (width) ── */}
-        {!expanded && (
-          <div onMouseDown={startResize('h')} title="Drag to resize width"
-            style={{ ...hBase('ew-resize', { right: 0, top: 0, bottom: 8, width: 8 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-            onMouseLeave={e => { if (resizing !== 'h') e.currentTarget.style.background = 'transparent'; }}
-          >
-            {gripDots('h', resizing === 'h' || resizing === 'corner')}
-          </div>
-        )}
-
-        {/* ── corner handle (both) ── */}
-        {!expanded && (
-          <div onMouseDown={startResize('corner')} title="Drag to resize both"
-            style={{ ...hBase('nwse-resize', { bottom: 0, right: 0, width: 16, height: 16 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}22`}
-            onMouseLeave={e => { if (resizing !== 'corner') e.currentTarget.style.background = 'transparent'; }}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" style={{ pointerEvents: 'none', opacity: 0.5 }}>
-              <line x1="10" y1="3" x2="3" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="10" y1="6" x2="6" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="10" y1="9" x2="9" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-        )}
       </div>
 
-      {showLogs && (
-        <RawLogsViewer panel={panel} onClose={() => setShowLogs(false)} />
-      )}
+      {showLogs && <RawLogsViewer panel={panel} onClose={() => setShowLogs(false)} />}
 
       <style>{`
         @keyframes kql-spin  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

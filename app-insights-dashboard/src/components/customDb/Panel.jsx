@@ -10,12 +10,6 @@ import BarChartViz from './visualizations/BarChartViz';
 import PieChartViz from './visualizations/PieChartViz';
 import GaugeViz from './visualizations/GaugeViz';
 
-const MIN_H = 180;
-const MAX_H = 1200;
-const MIN_W = 320;
-const DEFAULT_H = 300;
-
-/* ── icon button ─────────────────────────────────────────────────────────── */
 const PBtn = ({ onClick, disabled, title, children, T, danger }) => (
   <button onClick={onClick} disabled={disabled} title={title}
     style={{
@@ -32,37 +26,16 @@ const PBtn = ({ onClick, disabled, title, children, T, danger }) => (
   </button>
 );
 
-const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
+/* ══ Panel — resize/drag handled by PanelGrid parent ════════════════════════ */
+const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
   const { T } = useTheme();
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [expanded,   setExpanded]   = useState(false);
-  const [saving,     setSaving]     = useState(false);
-
-  /* ── resize ── */
-  const [panelH,   setPanelH]   = useState(panel.position?.pixelH || Math.max(DEFAULT_H, (panel.position?.h || 4) * 72));
-  const [panelW,   setPanelW]   = useState(panel.position?.pixelW || null);
-  const [resizing, setResizing] = useState(null);
-
-  const resizeRef    = useRef({ startX: 0, startY: 0, startW: 0, startH: 0 });
-  const containerRef = useRef(null);
   const intervalRef  = useRef(null);
-  const saveTimerRef = useRef(null);
 
-  /* ── persist size ── */
-  const persistSize = useCallback(async (h, w) => {
-    setSaving(true);
-    try {
-      await axios.put(`${API_BASE_URL}/api/custom-db/panels/${panel.id}`, {
-        position: { ...panel.position, pixelH: Math.round(h), pixelW: w ? Math.round(w) : null },
-      });
-    } catch (err) { console.warn('Failed to save panel size:', err.message); }
-    finally { setSaving(false); }
-  }, [panel.id, panel.position]);
-
-  /* ── query ── */
   const executeQuery = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -80,38 +53,8 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [panel.id, panel.refreshInterval, executeQuery]);
 
-  /* ── resize handlers ── */
-  const startResize = useCallback((type) => (e) => {
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    resizeRef.current = { startX: e.clientX, startY: e.clientY, startW: rect?.width || panelW || 500, startH: panelH };
-    setResizing(type);
-  }, [panelH, panelW]);
+  const displayH = expanded ? 600 : (height || 300);
 
-  useEffect(() => {
-    if (!resizing) return;
-    let lH = panelH, lW = panelW;
-    const onMove = (e) => {
-      const dx = e.clientX - resizeRef.current.startX;
-      const dy = e.clientY - resizeRef.current.startY;
-      if (resizing === 'v' || resizing === 'corner') { lH = Math.min(MAX_H, Math.max(MIN_H, resizeRef.current.startH + dy)); setPanelH(lH); }
-      if (resizing === 'h' || resizing === 'corner') { lW = Math.max(MIN_W, resizeRef.current.startW + dx); setPanelW(lW); }
-    };
-    const onUp = () => {
-      setResizing(null);
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => persistSize(lH, lW), 400);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup',   onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [resizing, panelH, panelW, persistSize]);
-
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
-
-  const displayH = expanded ? 600 : panelH;
-
-  /* ── visualization ── */
   const renderViz = () => {
     if (loading && !data) {
       return (
@@ -149,24 +92,15 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
     }
   };
 
-  const hBase = (cursor, pos) => ({ position: 'absolute', ...pos, cursor, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' });
-  const dots  = (dir, active) => (
-    <div style={{ display: 'flex', flexDirection: dir === 'h' ? 'column' : 'row', gap: 3, pointerEvents: 'none' }}>
-      {[0,1,2,3,4].map(i => <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: active ? T.blue : T.border2 }} />)}
-    </div>
-  );
-
   return (
     <>
-      <div ref={containerRef} style={{
+      <div style={{
         background: T.surface,
-        border: `1px solid ${resizing ? T.blue : T.border}`,
+        border: `1px solid ${T.border}`,
         display: 'flex', flexDirection: 'column',
         height: displayH, width: '100%',
         overflow: 'hidden',
-        transition: resizing ? 'none' : 'border-color 0.15s',
         position: 'relative',
-        userSelect: resizing ? 'none' : 'auto',
         boxSizing: 'border-box',
       }}>
         {/* header */}
@@ -184,9 +118,6 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
             )}
           </div>
 
-          {resizing && <span style={{ fontSize: 10, color: T.blue, fontVariantNumeric: 'tabular-nums' }}>{panelW ? `${Math.round(panelW)}w × ` : ''}{Math.round(displayH)}h px</span>}
-          {saving && !resizing && <span style={{ fontSize: 10, color: T.dim }}>saving…</span>}
-
           <div style={{ display: 'flex', gap: 0, flexShrink: 0 }}>
             <PBtn onClick={executeQuery} disabled={loading} title="Refresh" T={T}>
               <FaSync style={{ fontSize: 11, animation: loading ? 'cdb-spin 0.8s linear infinite' : 'none' }} />
@@ -194,15 +125,9 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
             <PBtn onClick={() => setExpanded(v => !v)} title={expanded ? 'Collapse' : 'Expand'} T={T}>
               {expanded ? <FaCompress style={{ fontSize: 11 }} /> : <FaExpand style={{ fontSize: 11 }} />}
             </PBtn>
-            <PBtn onClick={() => onEdit(panel)} title="Edit" T={T}>
-              <FaEdit style={{ fontSize: 11 }} />
-            </PBtn>
-            <PBtn onClick={() => onDuplicate(panel.id)} title="Duplicate" T={T}>
-              <FaCopy style={{ fontSize: 11 }} />
-            </PBtn>
-            <PBtn onClick={() => onDelete(panel.id)} title="Delete" T={T} danger>
-              <FaTrash style={{ fontSize: 11 }} />
-            </PBtn>
+            <PBtn onClick={() => onEdit(panel)} title="Edit" T={T}><FaEdit style={{ fontSize: 11 }} /></PBtn>
+            <PBtn onClick={() => onDuplicate(panel.id)} title="Duplicate" T={T}><FaCopy style={{ fontSize: 11 }} /></PBtn>
+            <PBtn onClick={() => onDelete(panel.id)} title="Delete" T={T} danger><FaTrash style={{ fontSize: 11 }} /></PBtn>
           </div>
         </div>
 
@@ -210,39 +135,6 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate }) => {
         <div style={{ flex: 1, minHeight: 0, padding: '10px 12px', overflow: 'hidden', background: T.chartBg }}>
           {renderViz()}
         </div>
-
-        {/* resize handles */}
-        {!expanded && (
-          <div onMouseDown={startResize('v')} title="Drag to resize height"
-            style={{ ...hBase('ns-resize', { bottom: 0, left: 0, right: 16, height: 8 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-            onMouseLeave={e => { if (resizing !== 'v') e.currentTarget.style.background = 'transparent'; }}
-          >
-            {dots('v', resizing === 'v' || resizing === 'corner')}
-          </div>
-        )}
-        {!expanded && (
-          <div onMouseDown={startResize('h')} title="Drag to resize width"
-            style={{ ...hBase('ew-resize', { right: 0, top: 0, bottom: 8, width: 8 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-            onMouseLeave={e => { if (resizing !== 'h') e.currentTarget.style.background = 'transparent'; }}
-          >
-            {dots('h', resizing === 'h' || resizing === 'corner')}
-          </div>
-        )}
-        {!expanded && (
-          <div onMouseDown={startResize('corner')} title="Drag to resize both"
-            style={{ ...hBase('nwse-resize', { bottom: 0, right: 0, width: 16, height: 16 }) }}
-            onMouseEnter={e => e.currentTarget.style.background = `${T.blue}22`}
-            onMouseLeave={e => { if (resizing !== 'corner') e.currentTarget.style.background = 'transparent'; }}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" style={{ pointerEvents: 'none', opacity: 0.5 }}>
-              <line x1="10" y1="3" x2="3" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="10" y1="6" x2="6" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-              <line x1="10" y1="9" x2="9" y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-        )}
       </div>
 
       <style>{`
