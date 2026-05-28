@@ -5,36 +5,132 @@
 # Build:
 #   docker build -f Dockerfile.combined.ci -t reddy321678/apim:latest .
 #
-# Run with Default Settings:
+# ── Minimal Run (Required vars only) ──────────────────────────────────────────
+#   docker run -d -p 8082:80 \
+#     -e APP_INSIGHTS_APP_ID=xxx \
+#     -e APP_INSIGHTS_API_KEY=xxx \
+#     -e AZURE_SUBSCRIPTION_ID=xxx \
+#     -e AZURE_RESOURCE_GROUP=xxx \
+#     -e JWT_SECRET=xxx \
+#     -e ADMIN_PASSWORD=xxx \
+#     reddy321678/apim:latest
+#
+# ── Full Run (All features) ────────────────────────────────────────────────────
 #   docker run -d -p 8082:80 \
 #     -e REACT_APP_REGION_NAME="SAN Region" \
-#     -e APP_INSIGHTS_APP_ID=xxx \
-#     -e APP_INSIGHTS_API_KEY=xxx \
-#     -e AZURE_SUBSCRIPTION_ID=xxx \
-#     -e AZURE_RESOURCE_GROUP=xxx \
-#     -e JWT_SECRET=xxx \
-#     -e ADMIN_PASSWORD=xxx \
-#     reddy321678/apim:latest
-#
-# Run with Custom Branding (Runtime Customization):
-#   docker run -d -p 8082:80 \
-#     -e PROJECT_NAME="MyCompany API Monitor" \
-#     -e PROJECT_LOGO="/custom-logo.png" \
+#     -e PROJECT_NAME="MyCompany Monitor" \
+#     -e PROJECT_LOGO="https://example.com/logo.svg" \
 #     -e TOP_APIS_LIMIT="20" \
-#     -e REACT_APP_REGION_NAME="Production" \
+#     \
 #     -e APP_INSIGHTS_APP_ID=xxx \
 #     -e APP_INSIGHTS_API_KEY=xxx \
 #     -e AZURE_SUBSCRIPTION_ID=xxx \
 #     -e AZURE_RESOURCE_GROUP=xxx \
+#     -e AKS_CLUSTER_NAME=xxx \
+#     -e MYSQL_SERVER_NAME=xxx \
+#     -e LOG_ANALYTICS_AUTH_TOKEN=xxx \
+#     -e LOG_ANALYTICS_WORKSPACE_ID=xxx \
+#     \
 #     -e JWT_SECRET=xxx \
+#     -e ADMIN_USERNAME=admin \
 #     -e ADMIN_PASSWORD=xxx \
+#     -e VIEWER_USERNAME=viewer \
+#     -e VIEWER_PASSWORD=xxx \
+#     -e EXTRA_USERS="alice:pass1:viewer,bob:pass2:admin" \
+#     \
+#     -e TELEGRAM_BOT_TOKEN=xxx \
+#     -e TELEGRAM_CHAT_ID=xxx \
+#     -e WHATSAPP_PHONE_ID=xxx \
+#     -e WHATSAPP_RECIPIENTS=xxx \
+#     \
+#     -e TEAMS_WEBHOOK_URL=xxx \
+#     -e DASHBOARD_URL=http://your-server:8082 \
+#     -e ALERT_EMAIL_TO=ops@company.com \
+#     -e ALERT_EMAIL_FROM=alerts@company.com \
+#     -e SMTP_HOST=smtp.company.com \
+#     -e SMTP_PORT=587 \
+#     -e SMTP_USER=xxx \
+#     -e SMTP_PASS=xxx \
+#     \
+#     -e VAPID_PUBLIC_KEY=xxx \
+#     -e VAPID_PRIVATE_KEY=xxx \
+#     -e VAPID_EMAIL=mailto:admin@company.com \
+#     \
+#     -e AZURE_OPENAI_ENDPOINT=https://xxx.openai.azure.com \
+#     -e AZURE_OPENAI_KEY=xxx \
+#     -e AZURE_OPENAI_DEPLOYMENT=gpt-4 \
+#     -e OPENAI_API_KEY=xxx \
+#     -e OPENAI_MODEL=gpt-4o-mini \
+#     -e ALLOW_OPENAI_PUBLIC=false \
+#     -e ANONYMIZE_AI=true \
+#     \
+#     -e ML_SCHEDULE_INTERVAL_MS=300000 \
+#     -e ML_MIN_CONFIDENCE=0.7 \
+#     -e ML_DEDUP_WINDOW_MS=600000 \
 #     reddy321678/apim:latest
 #
-# Runtime Customization Features:
-#   - PROJECT_NAME: Application name shown in UI (default: "MoMo Insights")
-#   - PROJECT_LOGO: Logo path (default: "/momo.png")
-#   - TOP_APIS_LIMIT: Number of top APIs to show (default: "10")
-#   - These can be changed without rebuilding the image!
+# ── Environment Variable Reference ────────────────────────────────────────────
+#
+#  BRANDING (runtime, no rebuild needed):
+#    REACT_APP_REGION_NAME   Region shown in header (default: SAN Region)
+#    PROJECT_NAME            App name in UI (default: CCMP)
+#    PROJECT_LOGO            Logo URL or path (default: Cricket Wireless SVG)
+#    TOP_APIS_LIMIT          Top APIs count (default: 10)
+#
+#  AZURE APP INSIGHTS (required for data):
+#    APP_INSIGHTS_APP_ID     Application Insights App ID
+#    APP_INSIGHTS_API_KEY    Application Insights API Key
+#
+#  AZURE INFRASTRUCTURE (optional — enables infra/mysql tabs):
+#    AZURE_SUBSCRIPTION_ID   Azure Subscription ID
+#    AZURE_RESOURCE_GROUP    Azure Resource Group name
+#    AKS_CLUSTER_NAME        AKS cluster name (enables Infrastructure tab)
+#    MYSQL_SERVER_NAME       MySQL server name (enables MySQL tab)
+#    LOG_ANALYTICS_AUTH_TOKEN  Log Analytics bearer token
+#    LOG_ANALYTICS_WORKSPACE_ID  Log Analytics workspace ID
+#
+#  AUTHENTICATION (required):
+#    JWT_SECRET              Strong random secret (min 32 chars)
+#    ADMIN_USERNAME          Admin username (default: admin)
+#    ADMIN_PASSWORD          Admin password — full access
+#    VIEWER_USERNAME         Viewer username (default: viewer)
+#    VIEWER_PASSWORD         Viewer password — read-only access (leave empty to disable)
+#    EXTRA_USERS             Extra users: "alice:pass1:viewer,bob:pass2:admin"
+#                            Format: username:password:role (role = admin|viewer)
+#
+#  NOTIFICATIONS (optional):
+#    TELEGRAM_BOT_TOKEN      Telegram bot token
+#    TELEGRAM_CHAT_ID        Telegram chat/group ID
+#    WHATSAPP_PHONE_ID       WhatsApp Business phone ID
+#    WHATSAPP_RECIPIENTS     Comma-separated WhatsApp numbers
+#    TEAMS_WEBHOOK_URL       Microsoft Teams incoming webhook URL
+#    DASHBOARD_URL           Public URL of this dashboard (for alert links)
+#    ALERT_EMAIL_TO          Alert recipient email
+#    ALERT_EMAIL_FROM        Alert sender email
+#    SMTP_HOST               SMTP server hostname
+#    SMTP_PORT               SMTP port (default: 587)
+#    SMTP_USER               SMTP username
+#    SMTP_PASS               SMTP password
+#
+#  BROWSER PUSH (optional):
+#    VAPID_PUBLIC_KEY        VAPID public key for web push
+#    VAPID_PRIVATE_KEY       VAPID private key for web push
+#    VAPID_EMAIL             VAPID contact email (mailto:...)
+#
+#  AI ANALYSIS (optional):
+#    AZURE_OPENAI_ENDPOINT   Azure OpenAI endpoint URL
+#    AZURE_OPENAI_KEY        Azure OpenAI API key
+#    AZURE_OPENAI_DEPLOYMENT Deployment name (default: gpt-4)
+#    OPENAI_API_KEY          OpenAI API key (public, opt-in only)
+#    OPENAI_MODEL            OpenAI model (default: gpt-4o-mini)
+#    ALLOW_OPENAI_PUBLIC     Allow public OpenAI API (default: false)
+#    ANONYMIZE_AI            Anonymize API names before sending to AI
+#    AI_DISABLED             Set to "true" to disable AI entirely
+#
+#  ML TUNING (optional):
+#    ML_SCHEDULE_INTERVAL_MS ML run interval in ms (default: 300000 = 5min)
+#    ML_MIN_CONFIDENCE       Min confidence threshold (default: 0.7)
+#    ML_DEDUP_WINDOW_MS      Alert dedup window in ms (default: 600000 = 10min)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Stage 1: Build Frontend ───────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import IncidentFormPage from "./pages/IncidentFormPage";
 import FailuresPanel from "./pages/FailuresPanel";
 import PerformancePanel from "./pages/PerfPanel";
 import CustomDbQuery from "./pages/CustomDbQuery";
+import KqlDashboard from "./pages/KqlDashboard";
 import Sidebar from "./components/ui/Sidebar";
 import { isTokenValid } from "./config/axiosSetup";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -67,6 +68,9 @@ function AppRoutes() {
         } />
         <Route path="/custom-db" element={
           <ProtectedRoute><AppLayout><CustomDbQuery /></AppLayout></ProtectedRoute>
+        } />
+        <Route path="/kql-dashboard" element={
+          <ProtectedRoute><AppLayout><KqlDashboard /></AppLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>

@@ -30,6 +30,7 @@ const Login = () => {
       localStorage.setItem("auth_token", data.token);
       localStorage.setItem("auth_expires", String(data.expiresAt));
       localStorage.setItem("auth_user", data.username);
+      localStorage.setItem("auth_role", data.role || "viewer");
       localStorage.setItem("auth", "true");
       navigate("/dashboard");
     } catch (err) {
@@ -87,7 +88,7 @@ const Login = () => {
               margin: "0 auto 16px",
               boxShadow: isLight ? "0 0 32px rgba(26,79,170,0.1)" : "0 0 32px rgba(87,148,242,0.15)",
             }}>
-              <img src={projectLogo} alt="Logo" style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover" }} />
+              <img src={projectLogo} alt="Logo" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "contain" }} />
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>
               {projectName}

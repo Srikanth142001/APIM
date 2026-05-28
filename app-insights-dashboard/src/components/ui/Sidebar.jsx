@@ -4,7 +4,7 @@ import {
   FaTachometerAlt, FaServer, FaDatabase, FaExclamationTriangle,
   FaClipboardList, FaFileAlt, FaChevronLeft, FaChevronRight,
   FaSignOutAlt, FaBell, FaNetworkWired, FaChartBar, FaTimesCircle,
-  FaSun, FaMoon,
+  FaSun, FaMoon, FaChartLine,
 } from "react-icons/fa";
 import { useTheme } from "../../context/ThemeContext";
 import { useFeatures } from "../../context/FeaturesContext";
@@ -17,6 +17,7 @@ const ALL_NAV = [
   { label: "Infrastructure",  icon: FaServer,              path: "/dashboard?tab=infra",     section: "monitoring", feature: "infrastructure" },
   { label: "MySQL",           icon: FaDatabase,            path: "/dashboard?tab=mysql",     section: "monitoring", feature: "mysql" },
   { label: "Custom DB Query", icon: FaDatabase,            path: "/custom-db",               section: "monitoring", feature: null },
+  { label: "KQL Dashboard",   icon: FaChartLine,           path: "/kql-dashboard",           section: "monitoring", feature: null },
   { label: "Alerts",          icon: FaBell,                path: "/dashboard?tab=alerts",    section: "monitoring", feature: null },
   { label: "ML Alerts",       icon: FaNetworkWired,        path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
   { label: "Outages",         icon: FaExclamationTriangle, path: "/outages",                 section: "incidents",  feature: null },
@@ -46,6 +47,7 @@ export default function Sidebar({ alertCount = 0 }) {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_expires");
     localStorage.removeItem("auth_user");
+    localStorage.removeItem("auth_role");
     navigate("/");
   };
 
@@ -77,7 +79,29 @@ export default function Sidebar({ alertCount = 0 }) {
       {/* Logo */}
       <div style={{ padding: "14px 12px", borderBottom: `1px solid ${T.sidebarBorder}`, display: "flex", alignItems: "center", gap: 10, minHeight: 48 }}>
         <div style={{ width: 28, height: 28, borderRadius: 4, background: "linear-gradient(135deg, #1f60c4, #5794f2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff", flexShrink: 0 }}>N</div>
-        {!collapsed && <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden" }}>NexGen APIM</span>}
+        {!collapsed && (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden" }}>NexGen APIM</div>
+            {(() => {
+              const role = localStorage.getItem("auth_role") || "viewer";
+              const user = localStorage.getItem("auth_user") || "";
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                  <span style={{ fontSize: 10, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>{user}</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: "1px 5px",
+                    background: role === "admin" ? `${T.blue}22` : `${T.green}22`,
+                    color: role === "admin" ? T.blue : T.green,
+                    border: `1px solid ${role === "admin" ? T.blue + "44" : T.green + "44"}`,
+                    letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0,
+                  }}>
+                    {role}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Nav */}

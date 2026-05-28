@@ -1,6 +1,7 @@
 // === index.js ===
-const express = require("express");
 const dotenv = require("dotenv");
+dotenv.config();
+const express = require("express");
 const cors = require("cors");
 const { requireAuth } = require("./middleware/auth");
 const authRoutes = require("./routes/authRoutes");
@@ -39,8 +40,9 @@ const performancePanel   = require("./routes/performancePanel");
 const apiSearch          = require("./routes/apiSearch");
 // ── Custom Database Query ────────────────────────────────────────────────────
 const customDbRoutes     = require("./routes/customDbRoutes");
+// ── KQL Dashboard ────────────────────────────────────────────────────────────
+const kqlRoutes          = require("./routes/kqlRoutes");
 
-dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -95,6 +97,8 @@ app.use("/api/performance-panel",   performancePanel);
 app.use("/api/api-search",          apiSearch);
 // ── Custom Database Query ────────────────────────────────────────────────────
 app.use("/api/custom-db",           customDbRoutes);
+// ── KQL Dashboard ────────────────────────────────────────────────────────────
+app.use("/api/kql",                 kqlRoutes);
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {

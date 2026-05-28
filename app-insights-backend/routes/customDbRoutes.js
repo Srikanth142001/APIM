@@ -8,6 +8,18 @@ const router = express.Router();
 const customDbService = require('../services/customDbService');
 const customDbPanelService = require('../services/customDbPanelService');
 
+// ── Role middleware — admin only for write operations ─────────────────────────
+const requireAdmin = (req, res, next) => {
+  const role = req.user?.role || '';
+  if (role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required. Your account has read-only access.'
+    });
+  }
+  next();
+};
+
 // ── Test Database Connection ──────────────────────────────────────────────────
 router.post('/connections/test', async (req, res) => {
   try {
@@ -41,7 +53,7 @@ router.post('/connections/test', async (req, res) => {
 });
 
 // ── Create/Update Database Connection ─────────────────────────────────────────
-router.post('/connections', async (req, res) => {
+router.post('/connections', requireAdmin, async (req, res) => {
   try {
     const { id, name, host, port, database, username, password, ssl } = req.body;
 
@@ -91,7 +103,7 @@ router.get('/connections', async (req, res) => {
 });
 
 // ── Delete Connection ─────────────────────────────────────────────────────────
-router.delete('/connections/:id', async (req, res) => {
+router.delete('/connections/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await customDbService.closeConnection(id);
@@ -186,7 +198,7 @@ router.get('/dashboards', async (req, res) => {
 });
 
 // ── Create Dashboard ──────────────────────────────────────────────────────────
-router.post('/dashboards', async (req, res) => {
+router.post('/dashboards', requireAdmin, async (req, res) => {
   try {
     const { name, description } = req.body;
     
@@ -243,7 +255,7 @@ router.get('/dashboards/:id', async (req, res) => {
 });
 
 // ── Update Dashboard ──────────────────────────────────────────────────────────
-router.put('/dashboards/:id', async (req, res) => {
+router.put('/dashboards/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
@@ -263,7 +275,7 @@ router.put('/dashboards/:id', async (req, res) => {
 });
 
 // ── Delete Dashboard ──────────────────────────────────────────────────────────
-router.delete('/dashboards/:id', async (req, res) => {
+router.delete('/dashboards/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = customDbPanelService.deleteDashboard(id);
@@ -278,7 +290,7 @@ router.delete('/dashboards/:id', async (req, res) => {
 });
 
 // ── Create Panel ──────────────────────────────────────────────────────────────
-router.post('/dashboards/:dashboardId/panels', async (req, res) => {
+router.post('/dashboards/:dashboardId/panels', requireAdmin, async (req, res) => {
   try {
     const { dashboardId } = req.params;
     const panelData = req.body;
@@ -323,7 +335,7 @@ router.get('/dashboards/:dashboardId/panels', async (req, res) => {
 });
 
 // ── Update Panel ──────────────────────────────────────────────────────────────
-router.put('/panels/:id', async (req, res) => {
+router.put('/panels/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const panelData = req.body;
@@ -343,7 +355,7 @@ router.put('/panels/:id', async (req, res) => {
 });
 
 // ── Delete Panel ──────────────────────────────────────────────────────────────
-router.delete('/panels/:id', async (req, res) => {
+router.delete('/panels/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = customDbPanelService.deletePanel(id);
@@ -358,7 +370,7 @@ router.delete('/panels/:id', async (req, res) => {
 });
 
 // ── Duplicate Panel ───────────────────────────────────────────────────────────
-router.post('/panels/:id/duplicate', async (req, res) => {
+router.post('/panels/:id/duplicate', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const panel = customDbPanelService.duplicatePanel(id);
@@ -423,7 +435,7 @@ router.get('/dashboards/:id/export', async (req, res) => {
 });
 
 // ── Import Dashboard ──────────────────────────────────────────────────────────
-router.post('/dashboards/import', async (req, res) => {
+router.post('/dashboards/import', requireAdmin, async (req, res) => {
   try {
     const { data, connectionId } = req.body;
     
