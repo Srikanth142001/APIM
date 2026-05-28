@@ -1,72 +1,118 @@
 /**
- * PanelGrid — drag-to-reorder + live-resize container
+ * PanelGrid — free-position canvas with drag-anywhere + resize + collision push
  *
- * Props:
- *   panels        — array of panel objects (must have .id, .position)
- *   onLayoutChange(id, { pixelW, pixelH, order }) — called after resize/drag ends
- *   renderPanel(panel, { width, height }) — render function for each panel
- *   isAdmin       — show drag handle
+ * - Panels can be dragged freely anywhere on the canvas
+ * - When dropped, overlapping panels are pushed away (no overlap allowed)
+ * - Resize from SE corner, E edge, or S edge
+ * - Layout persisted via onLayoutChange(id, { x, y, pixelW, pixelH })
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
-const MIN_W   = 320;
-const MIN_H   = 180;
-const MAX_H   = 1200;
-const DEF_H   = 300;
-const GAP     = 14;
+const MIN_W      = 300;
+const MIN_H      = 180;
+const MAX_H      = 1200;
+const DEF_W      = 520;
+const DEF_H      = 300;
+const SNAP       = 10;
+const GAP        = 14;   // minimum gap between panels after push
+const CANVAS_PAD = 60;
 
-/* ── drag ghost ─────────────────────────────────────────────────────────── */
-const Ghost = ({ width, height, T }) => (
-  <div style={{
-    width, height,
-    border: `2px dashed ${T.blue}`,
-    background: `${T.blue}0a`,
-    boxSizing: 'border-box',
-    pointerEvents: 'none',
-  }} />
-);
+const snap = v => Math.round(v / SNAP) * SNAP;
 
-/* ── grip dots ───────────────────────────────────────────────────────────── */
-const GripDots = ({ dir, active, T }) => (
-  <div style={{ display: 'flex', flexDirection: dir === 'h' ? 'column' : 'row', gap: 3, pointerEvents: 'none' }}>
+/* ── check if two rects overlap (with gap) ─────────────────────────────────── */
+const overlaps = (a, b) =>
+  a.x < b.x + b.w + GAP &&
+  a.x + a.w + GAP > b.x &&
+  a.y < b.y + b.h + GAP &&
+  a.y + a.h + GAP > b.y;
+
+/* ── push all other panels away from the moved panel ───────────────────────── */
+const resolveCollisions = (movedId, layoutMap) => {
+  const result = { ...layoutMap };
+  const moved  = result[movedId];
+  const others = Object.keys(result).filter(id => id !== movedId);
+
+  // up to 10 passes to settle cascading pushes
+  for (let pass = 0; pass < 10; pass++) {
+    let changed = false;
+    for (const id of others) {
+      const p = result[id];
+      if (!overlaps(moved, p)) continue;
+
+      // find the axis with least overlap and push on that axis
+      const overlapX = Math.min(moved.x + moved.w + GAP - p.x, p.x + p.w + GAP - moved.x);
+      const overlapY = Math.min(moved.y + moved.h + GAP - p.y, p.y + p.h + GAP - moved.y);
+
+      let nx = p.x, ny = p.y;
+      if (overlapX < overlapY) {
+        // push horizontally
+        if (p.x < moved.x) nx = moved.x - p.w - GAP;
+        else                nx = moved.x + moved.w + GAP;
+      } else {
+        // push vertically
+        if (p.y < moved.y) ny = moved.y - p.h - GAP;
+        else                ny = moved.y + moved.h + GAP;
+      }
+
+      nx = snap(Math.max(0, nx));
+      ny = snap(Math.max(0, ny));
+
+      if (nx !== p.x || ny !== p.y) {
+        result[id] = { ...p, x: nx, y: ny };
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return result;
+};
+
+/* ── grip dots ─────────────────────────────────────────────────────────────── */
+const Dots = ({ dir, active, T }) => (
+  <div style={{ display: 'flex', flexDirection: dir === 'col' ? 'column' : 'row', gap: 3, pointerEvents: 'none' }}>
     {[0,1,2,3,4].map(i => (
       <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: active ? T.blue : T.border2 }} />
     ))}
   </div>
 );
 
-/* ══ PanelGrid ═══════════════════════════════════════════════════════════════ */
+/* ══ PanelGrid ════════════════════════════════════════════════════════════════ */
 const PanelGrid = ({ panels, onLayoutChange, renderPanel, isAdmin }) => {
   const { T } = useTheme();
 
-  /* ── layout state: { [id]: { w, h, order } } ── */
+  /* ── layout: { [id]: { x, y, w, h } } ── */
   const [layout, setLayout] = useState(() => {
     const m = {};
     panels.forEach((p, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
       m[p.id] = {
-        w:     p.position?.pixelW || null,
-        h:     p.position?.pixelH || Math.max(DEF_H, (p.position?.h || 4) * 72),
-        order: p.position?.order  ?? i,
+        x: p.position?.x  ?? snap(col * (DEF_W + GAP * 2) + GAP),
+        y: p.position?.y  ?? snap(row * (DEF_H + GAP * 2) + GAP),
+        w: p.position?.pixelW || DEF_W,
+        h: p.position?.pixelH || DEF_H,
       };
     });
     return m;
   });
 
-  /* sync when panels list changes (new panel added, etc.) */
+  /* sync when panels list changes */
   useEffect(() => {
     setLayout(prev => {
       const next = { ...prev };
       panels.forEach((p, i) => {
         if (!next[p.id]) {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
           next[p.id] = {
-            w:     p.position?.pixelW || null,
-            h:     p.position?.pixelH || Math.max(DEF_H, (p.position?.h || 4) * 72),
-            order: p.position?.order  ?? i,
+            x: p.position?.x  ?? snap(col * (DEF_W + GAP * 2) + GAP),
+            y: p.position?.y  ?? snap(row * (DEF_H + GAP * 2) + GAP),
+            w: p.position?.pixelW || DEF_W,
+            h: p.position?.pixelH || DEF_H,
           };
         }
       });
-      // remove stale
       Object.keys(next).forEach(id => {
         if (!panels.find(p => p.id === id)) delete next[id];
       });
@@ -74,55 +120,122 @@ const PanelGrid = ({ panels, onLayoutChange, renderPanel, isAdmin }) => {
     });
   }, [panels]);
 
-  /* ── resize state ── */
-  const [resizing,   setResizing]   = useState(null); // { id, type }
-  const resizeRef    = useRef({ startX: 0, startY: 0, startW: 0, startH: 0, id: null });
-  const saveTimerRef = useRef(null);
+  /* ── active interaction ── */
+  const [active,   setActive]   = useState(null); // { id, mode, type }
+  const [dragging, setDragging] = useState(null);
+  const [hasOverlap, setHasOverlap] = useState(false);
+  const interRef  = useRef({});
+  const saveTimer = useRef(null);
 
+  /* ── z-index management ── */
+  const [zMap, setZMap] = useState(() => {
+    const m = {};
+    panels.forEach((p, i) => { m[p.id] = i + 1; });
+    return m;
+  });
+  const zCounter = useRef(panels.length + 1);
+
+  const bringToFront = useCallback((id) => {
+    zCounter.current += 1;
+    setZMap(prev => ({ ...prev, [id]: zCounter.current }));
+  }, []);
+
+  /* ── start drag ── */
+  const startDrag = useCallback((id) => (e) => {
+    if (!isAdmin) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    bringToFront(id);
+    const lay = layout[id] || {};
+    interRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startX: lay.x, startY: lay.y, startW: lay.w, startH: lay.h, id, mode: 'drag' };
+    setActive({ id, mode: 'drag' });
+    setDragging(id);
+  }, [layout, isAdmin, bringToFront]);
+
+  /* ── start resize ── */
   const startResize = useCallback((id, type) => (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const el = document.getElementById(`panel-wrap-${id}`);
-    const rect = el?.getBoundingClientRect();
-    resizeRef.current = {
-      startX: e.clientX, startY: e.clientY,
-      startW: rect?.width  || layout[id]?.w || 500,
-      startH: layout[id]?.h || DEF_H,
-      id,
-    };
-    setResizing({ id, type });
-  }, [layout]);
+    bringToFront(id);
+    const lay = layout[id] || {};
+    interRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startX: lay.x, startY: lay.y, startW: lay.w, startH: lay.h, id, mode: 'resize', type };
+    setActive({ id, mode: 'resize', type });
+  }, [layout, bringToFront]);
 
+  /* ── mouse move + up ── */
   useEffect(() => {
-    if (!resizing) return;
-    const { id, type } = resizing;
+    if (!active) return;
+    const { id, mode, type } = active;
 
     const onMove = (e) => {
-      const dx = e.clientX - resizeRef.current.startX;
-      const dy = e.clientY - resizeRef.current.startY;
+      const dx = e.clientX - interRef.current.startMouseX;
+      const dy = e.clientY - interRef.current.startMouseY;
+
       setLayout(prev => {
         const cur = prev[id] || {};
         const next = { ...cur };
-        if (type === 'v' || type === 'corner') {
-          next.h = Math.min(MAX_H, Math.max(MIN_H, resizeRef.current.startH + dy));
+
+        if (mode === 'drag') {
+          next.x = snap(Math.max(0, interRef.current.startX + dx));
+          next.y = snap(Math.max(0, interRef.current.startY + dy));
+        } else {
+          if (type === 'se' || type === 's') {
+            next.h = snap(Math.min(MAX_H, Math.max(MIN_H, interRef.current.startH + dy)));
+          }
+          if (type === 'se' || type === 'e') {
+            next.w = snap(Math.max(MIN_W, interRef.current.startW + dx));
+          }
+          if (type === 'sw') {
+            const newW = snap(Math.max(MIN_W, interRef.current.startW - dx));
+            next.x = snap(interRef.current.startX + (interRef.current.startW - newW));
+            next.w = newW;
+            next.h = snap(Math.min(MAX_H, Math.max(MIN_H, interRef.current.startH + dy)));
+          }
         }
-        if (type === 'h' || type === 'corner') {
-          next.w = Math.max(MIN_W, resizeRef.current.startW + dx);
+
+        const updated = { ...prev, [id]: next };
+
+        // check for overlaps during drag (visual indicator only)
+        if (mode === 'drag') {
+          const hasAny = Object.keys(updated).some(oid => oid !== id && overlaps(next, updated[oid]));
+          setHasOverlap(hasAny);
         }
-        return { ...prev, [id]: next };
+
+        return updated;
       });
     };
 
     const onUp = () => {
-      setResizing(null);
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        setLayout(prev => {
-          const cur = prev[id];
-          if (cur) onLayoutChange(id, { pixelW: cur.w, pixelH: cur.h });
-          return prev;
-        });
-      }, 300);
+      setActive(null);
+      setDragging(null);
+      setHasOverlap(false);
+
+      // on drop: resolve collisions then save all affected panels
+      setLayout(prev => {
+        const resolved = mode === 'drag' ? resolveCollisions(id, prev) : prev;
+
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+          // save moved/resized panel
+          const cur = resolved[id];
+          if (cur) onLayoutChange(id, { x: cur.x, y: cur.y, pixelW: cur.w, pixelH: cur.h });
+
+          // save any panels that were pushed
+          if (mode === 'drag') {
+            Object.keys(resolved).forEach(oid => {
+              if (oid === id) return;
+              const before = prev[oid];
+              const after  = resolved[oid];
+              if (before && after && (before.x !== after.x || before.y !== after.y)) {
+                onLayoutChange(oid, { x: after.x, y: after.y, pixelW: after.w, pixelH: after.h });
+              }
+            });
+          }
+        }, 300);
+
+        return resolved;
+      });
     };
 
     window.addEventListener('mousemove', onMove);
@@ -131,186 +244,115 @@ const PanelGrid = ({ panels, onLayoutChange, renderPanel, isAdmin }) => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup',   onUp);
     };
-  }, [resizing, onLayoutChange]);
+  }, [active, onLayoutChange]);
 
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  /* ── drag-to-reorder state ── */
-  const [dragging,   setDragging]   = useState(null); // id being dragged
-  const [dragOver,   setDragOver]   = useState(null); // id being hovered over
-  const dragRef      = useRef(null);
-
-  const onDragStart = useCallback((id) => (e) => {
-    dragRef.current = id;
-    setDragging(id);
-    e.dataTransfer.effectAllowed = 'move';
-    // transparent drag image
-    const ghost = document.createElement('div');
-    ghost.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  }, []);
-
-  const onDragOver = useCallback((id) => (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (id !== dragRef.current) setDragOver(id);
-  }, []);
-
-  const onDrop = useCallback((targetId) => (e) => {
-    e.preventDefault();
-    const sourceId = dragRef.current;
-    if (!sourceId || sourceId === targetId) { setDragging(null); setDragOver(null); return; }
-
-    setLayout(prev => {
-      const entries = Object.entries(prev).sort((a, b) => a[1].order - b[1].order);
-      const srcIdx = entries.findIndex(([id]) => id === sourceId);
-      const tgtIdx = entries.findIndex(([id]) => id === targetId);
-      if (srcIdx === -1 || tgtIdx === -1) return prev;
-
-      // swap orders
-      const next = { ...prev };
-      const srcOrder = prev[sourceId].order;
-      const tgtOrder = prev[targetId].order;
-      next[sourceId] = { ...prev[sourceId], order: tgtOrder };
-      next[targetId] = { ...prev[targetId], order: srcOrder };
-
-      // persist order for both
-      setTimeout(() => {
-        onLayoutChange(sourceId, { order: tgtOrder });
-        onLayoutChange(targetId, { order: srcOrder });
-      }, 0);
-
-      return next;
-    });
-
-    setDragging(null);
-    setDragOver(null);
-    dragRef.current = null;
-  }, [onLayoutChange]);
-
-  const onDragEnd = useCallback(() => {
-    setDragging(null);
-    setDragOver(null);
-    dragRef.current = null;
-  }, []);
-
-  /* ── sorted panels ── */
-  const sorted = [...panels].sort((a, b) => {
-    const oa = layout[a.id]?.order ?? 0;
-    const ob = layout[b.id]?.order ?? 0;
-    return oa - ob;
-  });
-
-  /* ── resize handle style ── */
-  const hBase = (cursor, pos) => ({
-    position: 'absolute', ...pos, cursor, zIndex: 20,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
+  /* ── canvas height ── */
+  const canvasH = Math.max(
+    600,
+    ...Object.values(layout).map(l => l.y + l.h + CANVAS_PAD)
+  );
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP, alignItems: 'flex-start' }}>
-      {sorted.map(panel => {
-        const lay    = layout[panel.id] || {};
-        const w      = lay.w || null;
-        const h      = lay.h || DEF_H;
+    <div style={{
+      position: 'relative',
+      width: '100%',
+      height: canvasH,
+      userSelect: active ? 'none' : 'auto',
+      cursor: dragging ? 'grabbing' : 'default',
+    }}>
+      {/* dot-grid background */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+        backgroundImage: `radial-gradient(circle, ${T.border2} 1px, transparent 1px)`,
+        backgroundSize: `${SNAP * 2}px ${SNAP * 2}px`,
+        opacity: 0.45,
+      }} />
+
+      {panels.map(panel => {
+        const lay   = layout[panel.id] || { x: 0, y: 0, w: DEF_W, h: DEF_H };
+        const isAct = active?.id === panel.id;
         const isDrag = dragging === panel.id;
-        const isOver = dragOver === panel.id;
-        const isRes  = resizing?.id === panel.id;
+        const z     = zMap[panel.id] || 1;
+
+        // check if this panel overlaps any other (for red border)
+        const panelOverlaps = isDrag && Object.keys(layout).some(
+          oid => oid !== panel.id && overlaps(lay, layout[oid])
+        );
 
         return (
           <div
             key={panel.id}
-            id={`panel-wrap-${panel.id}`}
-            draggable={isAdmin}
-            onDragStart={isAdmin ? onDragStart(panel.id) : undefined}
-            onDragOver={isAdmin ? onDragOver(panel.id) : undefined}
-            onDrop={isAdmin ? onDrop(panel.id) : undefined}
-            onDragEnd={isAdmin ? onDragEnd : undefined}
+            onMouseDown={() => bringToFront(panel.id)}
             style={{
-              flex:     w ? `0 0 ${w}px` : '1 1 500px',
-              minWidth: w ? `${w}px`      : '500px',
-              maxWidth: w ? `${w}px`      : '100%',
+              position: 'absolute',
+              left:   lay.x,
+              top:    lay.y,
+              width:  lay.w,
+              height: lay.h,
+              zIndex: z,
               boxSizing: 'border-box',
-              position: 'relative',
-              opacity:  isDrag ? 0.35 : 1,
-              outline:  isOver ? `2px dashed ${T.blue}` : 'none',
-              outlineOffset: 2,
-              transition: isDrag ? 'none' : 'opacity 0.15s, outline 0.1s',
+              outline: panelOverlaps
+                ? `2px solid ${T.red}`
+                : isAct
+                  ? `2px solid ${T.blue}`
+                  : 'none',
+              outlineOffset: 1,
+              boxShadow: isDrag
+                ? `0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px ${panelOverlaps ? T.red : T.blue}44`
+                : 'none',
+              transition: isDrag ? 'none' : 'box-shadow 0.15s, outline 0.1s',
             }}
           >
-            {/* drag ghost placeholder */}
-            {isOver && dragging && dragging !== panel.id && (
-              <div style={{
-                position: 'absolute', inset: 0, zIndex: 30,
-                background: `${T.blue}0a`,
-                border: `2px dashed ${T.blue}`,
-                pointerEvents: 'none',
-              }} />
-            )}
-
-            {/* drag handle — only for admin, shown on hover */}
+            {/* ── drag handle (thin bar at top, admin only) ── */}
             {isAdmin && (
               <div
-                title="Drag to reorder"
+                onMouseDown={startDrag(panel.id)}
+                title="Drag to move"
                 style={{
                   position: 'absolute', top: 0, left: 0, right: 0,
-                  height: 28, zIndex: 15,
-                  cursor: 'grab',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  opacity: 0,
-                  transition: 'opacity 0.15s',
+                  height: 7, zIndex: 10,
+                  cursor: isDrag ? 'grabbing' : 'grab',
+                  background: isDrag
+                    ? (panelOverlaps ? T.red : T.blue)
+                    : 'transparent',
+                  transition: 'background 0.12s',
+                  borderRadius: '1px 1px 0 0',
                 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0'}
-              >
-                <div style={{
-                  display: 'flex', gap: 3, padding: '3px 8px',
-                  background: T.panel, border: `1px solid ${T.border2}`,
-                  borderRadius: 3,
-                }}>
-                  {[0,1,2,3,4,5].map(i => (
-                    <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: T.muted }} />
-                  ))}
-                </div>
-              </div>
+                onMouseEnter={e => { if (!isDrag) e.currentTarget.style.background = `${T.blue}55`; }}
+                onMouseLeave={e => { if (!isDrag) e.currentTarget.style.background = 'transparent'; }}
+              />
             )}
 
             {/* panel content */}
-            <div style={{ height: h, overflow: 'hidden', position: 'relative' }}>
-              {renderPanel(panel, { width: w, height: h })}
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+              {renderPanel(panel, { width: lay.w, height: lay.h })}
             </div>
 
-            {/* ── bottom resize handle ── */}
-            <div
-              onMouseDown={startResize(panel.id, 'v')}
-              title="Drag to resize height"
-              style={{ ...hBase('ns-resize', { bottom: 0, left: 0, right: 16, height: 8 }) }}
-              onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-              onMouseLeave={e => { if (!isRes) e.currentTarget.style.background = 'transparent'; }}
-            >
-              <GripDots dir="v" active={isRes && (resizing.type === 'v' || resizing.type === 'corner')} T={T} />
-            </div>
-
-            {/* ── right resize handle ── */}
-            <div
-              onMouseDown={startResize(panel.id, 'h')}
-              title="Drag to resize width"
-              style={{ ...hBase('ew-resize', { right: 0, top: 0, bottom: 8, width: 8 }) }}
-              onMouseEnter={e => e.currentTarget.style.background = `${T.blue}18`}
-              onMouseLeave={e => { if (!isRes) e.currentTarget.style.background = 'transparent'; }}
-            >
-              <GripDots dir="h" active={isRes && (resizing.type === 'h' || resizing.type === 'corner')} T={T} />
-            </div>
-
-            {/* ── corner resize handle ── */}
-            <div
-              onMouseDown={startResize(panel.id, 'corner')}
-              title="Drag to resize both"
-              style={{ ...hBase('nwse-resize', { bottom: 0, right: 0, width: 16, height: 16 }) }}
+            {/* ── S resize ── */}
+            <div onMouseDown={startResize(panel.id, 's')} title="Resize height"
+              style={{ position: 'absolute', bottom: 0, left: 10, right: 10, height: 8, cursor: 'ns-resize', zIndex: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onMouseEnter={e => e.currentTarget.style.background = `${T.blue}22`}
-              onMouseLeave={e => { if (!isRes) e.currentTarget.style.background = 'transparent'; }}
+              onMouseLeave={e => { if (!isAct) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Dots dir="row" active={isAct && (active?.type === 's' || active?.type === 'se')} T={T} />
+            </div>
+
+            {/* ── E resize ── */}
+            <div onMouseDown={startResize(panel.id, 'e')} title="Resize width"
+              style={{ position: 'absolute', right: 0, top: 10, bottom: 10, width: 8, cursor: 'ew-resize', zIndex: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = `${T.blue}22`}
+              onMouseLeave={e => { if (!isAct) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Dots dir="col" active={isAct && (active?.type === 'e' || active?.type === 'se')} T={T} />
+            </div>
+
+            {/* ── SE corner ── */}
+            <div onMouseDown={startResize(panel.id, 'se')} title="Resize both"
+              style={{ position: 'absolute', bottom: 0, right: 0, width: 16, height: 16, cursor: 'nwse-resize', zIndex: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = `${T.blue}33`}
+              onMouseLeave={e => { if (!isAct) e.currentTarget.style.background = 'transparent'; }}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" style={{ pointerEvents: 'none', opacity: 0.5 }}>
                 <line x1="10" y1="3" x2="3"  y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
@@ -319,23 +361,44 @@ const PanelGrid = ({ panels, onLayoutChange, renderPanel, isAdmin }) => {
               </svg>
             </div>
 
-            {/* live size badge while resizing */}
-            {isRes && (
-              <div style={{
-                position: 'absolute', top: 8, right: 24, zIndex: 25,
-                background: T.blue, color: '#fff',
-                fontSize: 10, fontWeight: 600, padding: '2px 7px',
-                pointerEvents: 'none', fontVariantNumeric: 'tabular-nums',
-              }}>
-                {w ? `${Math.round(w)}w × ` : ''}{Math.round(h)}h
+            {/* ── SW corner ── */}
+            <div onMouseDown={startResize(panel.id, 'sw')} title="Resize from left"
+              style={{ position: 'absolute', bottom: 0, left: 0, width: 16, height: 16, cursor: 'nesw-resize', zIndex: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = `${T.blue}33`}
+              onMouseLeave={e => { if (!isAct) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" style={{ pointerEvents: 'none', opacity: 0.5, transform: 'scaleX(-1)' }}>
+                <line x1="10" y1="3" x2="3"  y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="10" y1="6" x2="6"  y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="10" y1="9" x2="9"  y2="10" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+
+            {/* size badge while resizing */}
+            {isAct && active?.mode === 'resize' && (
+              <div style={{ position: 'absolute', top: 10, right: 22, zIndex: 20, background: T.blue, color: '#fff', fontSize: 10, fontWeight: 600, padding: '2px 7px', pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                {Math.round(lay.w)} × {Math.round(lay.h)}
+              </div>
+            )}
+
+            {/* position badge while dragging */}
+            {isDrag && (
+              <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 20, background: panelOverlaps ? T.red : T.panel, border: `1px solid ${panelOverlaps ? T.red : T.blue}`, color: panelOverlaps ? '#fff' : T.blue, fontSize: 10, fontWeight: 600, padding: '2px 7px', pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                {panelOverlaps ? '⚠ overlapping' : `${Math.round(lay.x)}, ${Math.round(lay.y)}`}
               </div>
             )}
           </div>
         );
       })}
+
+      {/* global overlap warning */}
+      {hasOverlap && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: T.red, color: '#fff', fontSize: 12, fontWeight: 600, padding: '8px 20px', pointerEvents: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+          ⚠ Panels will be pushed apart on drop
+        </div>
+      )}
     </div>
   );
 };
 
-export { Ghost };
 export default PanelGrid;
