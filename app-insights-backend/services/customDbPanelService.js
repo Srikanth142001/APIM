@@ -198,10 +198,13 @@ class CustomDbPanelService {
       dashboardId,
       title: data.title,
       description: data.description || '',
-      connectionId: data.connectionId,
-      query: data.query,
-      visualizationType: data.visualizationType || 'table', // table, line, bar, pie, stat, gauge
-      refreshInterval: data.refreshInterval || 0, // 0 = manual, or seconds
+      // Legacy single-query fields (kept for backward compat)
+      connectionId: data.connectionId || (data.queries?.[0]?.connectionId) || '',
+      query: data.query || (data.queries?.[0]?.query) || '',
+      // Multi-query support: [{id, label, connectionId, query, color}]
+      queries: data.queries || [],
+      visualizationType: data.visualizationType || 'table',
+      refreshInterval: data.refreshInterval || 0,
       position: data.position || { x: 0, y: 0, w: 6, h: 4 },
       options: data.options || {},
       createdAt: new Date(),

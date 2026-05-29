@@ -29,7 +29,7 @@ const Tip = ({ active, payload, label, T }) => {
 
 const LineChartViz = ({ data, options = {} }) => {
   const { T } = useTheme();
-  const { xAxisColumn, yAxisColumns, areaMode = false, smooth = true, unit = '' } = options;
+  const { xAxisColumn, yAxisColumns, areaMode = false, smooth = true, unit = '', seriesColors = [] } = options;
 
   const { chartData, xCol, yCols } = useMemo(() => {
     if (!data?.rows?.length || !data?.fields?.length) return { chartData: [], xCol: '', yCols: [] };

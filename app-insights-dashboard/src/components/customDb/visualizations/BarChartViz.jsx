@@ -140,13 +140,15 @@ const BarChartViz = ({ data, options = {} }) => {
           <Tooltip content={<CustomTooltip T={T} />} cursor={{ fill: `${T.blue}11` }} />
           {valCols.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: T.muted }} />}
           {valCols.map((col, i) => {
-            const baseColor = seriesColors[i] || COLORS[i % COLORS.length];
+            const baseColor = (seriesColors && seriesColors[i]) ? seriesColors[i] : COLORS[i % COLORS.length];
+            const useCells = colorByValue.length > 0;
             return (
-              <Bar key={col} dataKey={col} fill={baseColor}
+              <Bar key={col} dataKey={col}
+                fill={useCells ? undefined : baseColor}
                 radius={[0, 3, 3, 0]} stackId={stacked ? 'stack' : undefined}
                 maxBarSize={32}>
-                {colorByValue.length > 0 && chartData.map((entry, idx) => (
-                  <rect key={idx} fill={getBarColor(baseColor, parseVal(entry[col]))} />
+                {useCells && chartData.map((entry, idx) => (
+                  <Cell key={idx} fill={getBarColor(baseColor, parseVal(entry[col]))} />
                 ))}
               </Bar>
             );
@@ -165,15 +167,15 @@ const BarChartViz = ({ data, options = {} }) => {
         <Tooltip content={<CustomTooltip T={T} />} cursor={{ fill: `${T.blue}11` }} />
         {valCols.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: T.muted, paddingTop: 6 }} />}
         {valCols.map((col, i) => {
-          const baseColor = seriesColors[i] || COLORS[i % COLORS.length];
-          // If colorByValue is set, use Cell for per-bar coloring
-          const useCellColor = colorByValue.length > 0 && valCols.length === 1;
+          const baseColor = (seriesColors && seriesColors[i]) ? seriesColors[i] : COLORS[i % COLORS.length];
+          // Apply per-bar color coding via Cell (works for any number of series)
+          const useCells = colorByValue.length > 0;
           return (
             <Bar key={col} dataKey={col}
-              fill={useCellColor ? undefined : baseColor}
+              fill={useCells ? undefined : baseColor}
               radius={[3, 3, 0, 0]} stackId={stacked ? 'stack' : undefined}
               maxBarSize={60}>
-              {useCellColor && chartData.map((entry, idx) => (
+              {useCells && chartData.map((entry, idx) => (
                 <Cell key={idx} fill={getBarColor(baseColor, parseVal(entry[col]))} />
               ))}
               {chartData.length <= 8 && (

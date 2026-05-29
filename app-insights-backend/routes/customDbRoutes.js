@@ -387,32 +387,43 @@ router.post('/panels/:id/duplicate', requireAdmin, async (req, res) => {
   }
 });
 
-// ── Execute Panel Query ───────────────────────────────────────────────────────
+// ── Execute Panel Query (supports multi-query with different connections) ──────
 router.post('/panels/:id/execute', async (req, res) => {
   try {
     const { id } = req.params;
     const panel = customDbPanelService.getPanel(id);
-    
+
     if (!panel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Panel not found'
+      return res.status(404).json({ success: false, message: 'Panel not found' });
+    }
+
+    // Multi-query mode: panel.queries = [{id, label, connectionId, query, color}]
+    if (panel.queries && panel.queries.length > 0) {
+      const results = await Promise.allSettled(
+        panel.queries.map(async (q) => {
+          try {
+            const result = await customDbService.executeQuery(q.connectionId, q.query, []);
+            return { id: q.id, label: q.label, color: q.color, success: true, data: result };
+          } catch (err) {
+            return { id: q.id, label: q.label, color: q.color, success: false, error: err.message };
+          }
+        })
+      );
+
+      return res.json({
+        success: true,
+        multiQuery: true,
+        queries: results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message }),
       });
     }
 
-    const result = await customDbService.executeQuery(
-      panel.connectionId,
-      panel.query,
-      []
-    );
-
+    // Legacy single-query mode (backward compatible)
+    const result = await customDbService.executeQuery(panel.connectionId, panel.query, []);
     res.json(result);
+
   } catch (error) {
     console.error('Execute panel query error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
