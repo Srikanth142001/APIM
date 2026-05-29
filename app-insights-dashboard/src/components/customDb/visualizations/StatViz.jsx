@@ -1,172 +1,137 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import { useTheme } from '../../../context/ThemeContext';
 
 const StatViz = ({ data, options = {} }) => {
+  const { T } = useTheme();
   const {
     columnIndex = 0,
-    aggregation = 'last', // last, first, sum, avg, min, max, count
+    aggregation = 'last',
     unit = '',
     decimals = 0,
-    colorMode = 'none',
-    thresholds = [],
     showSparkline = false,
-    showTrend = false
+    showTrend = false,
+    // Color coding: thresholds = [{value: 80, color: 'red'}, {value: 50, color: 'orange'}]
+    // colorMode: 'none' | 'threshold' | 'fixed'
+    colorMode = 'none',
+    fixedColor = '',
+    thresholds = [],  // [{value, color}] sorted desc
   } = options;
 
-  // Always call all hooks unconditionally — compute even if data is empty
-  const statResult = useMemo(() => {
-    const empty = { value: null, trend: null };
-    if (!data || !data.rows || data.rows.length === 0) return empty;
+  const { value, trend, sparkline, fieldName } = useMemo(() => {
+    const empty = { value: null, trend: null, sparkline: null, fieldName: 'Value' };
+    if (!data?.rows?.length || !data?.fields?.length) return empty;
 
-    const colIdx = Math.min(columnIndex, (data.fields || []).length - 1);
-    if (colIdx < 0) return empty;
-
-    const values = data.rows
-      .map(row => row[colIdx])
-      .filter(v => v !== null && v !== undefined);
-
-    if (values.length === 0) return empty;
+    const colIdx = Math.min(columnIndex, data.fields.length - 1);
+    const fname  = data.fields[colIdx]?.name || 'Value';
+    const rawVals = data.rows.map(r => r[colIdx]).filter(v => v !== null && v !== undefined);
+    // Parse string numbers (PostgreSQL returns bigint/numeric as strings)
+    const nums    = rawVals.map(v => parseFloat(v)).filter(v => !isNaN(v));
+    if (!nums.length) return { ...empty, fieldName: fname };
 
     let result;
     switch (aggregation) {
-      case 'first':
-        result = values[0];
-        break;
-      case 'sum':
-        result = values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
-        break;
-      case 'avg':
-        result = values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0) / values.length;
-        break;
-      case 'min':
-        result = Math.min(...values.map(v => parseFloat(v) || 0));
-        break;
-      case 'max':
-        result = Math.max(...values.map(v => parseFloat(v) || 0));
-        break;
-      case 'count':
-        result = values.length;
-        break;
-      case 'last':
-      default:
-        result = values[values.length - 1];
-        break;
+      case 'first': result = nums[0]; break;
+      case 'sum':   result = nums.reduce((a, b) => a + b, 0); break;
+      case 'avg':   result = nums.reduce((a, b) => a + b, 0) / nums.length; break;
+      case 'min':   result = Math.min(...nums); break;
+      case 'max':   result = Math.max(...nums); break;
+      case 'count': result = nums.length; break;
+      default:      result = nums[nums.length - 1]; break;
     }
 
-    let trendValue = null;
-    if (showTrend && values.length > 1 && aggregation === 'last') {
-      const first = parseFloat(values[0]) || 0;
-      const last = parseFloat(result) || 0;
-      if (first !== 0) {
-        trendValue = ((last - first) / first) * 100;
-      }
+    let trendVal = null;
+    if (showTrend && nums.length > 1) {
+      const first = nums[0], last = nums[nums.length - 1];
+      if (first !== 0) trendVal = ((last - first) / Math.abs(first)) * 100;
     }
 
-    return { value: result, trend: trendValue };
-  }, [data, columnIndex, aggregation, showTrend]);
+    let sparkData = null;
+    if (showSparkline && nums.length >= 2) {
+      const mn = Math.min(...nums), mx = Math.max(...nums), rng = mx - mn || 1;
+      sparkData = nums.map(v => ((v - mn) / rng) * 100);
+    }
 
-  const sparklineData = useMemo(() => {
-    if (!data || !data.rows || data.rows.length < 2 || !showSparkline) return null;
+    return { value: result, trend: trendVal, sparkline: sparkData, fieldName: fname };
+  }, [data, columnIndex, aggregation, showTrend, showSparkline]);
 
-    const colIdx = Math.min(columnIndex, (data.fields || []).length - 1);
-    if (colIdx < 0) return null;
-
-    const values = data.rows.map(row => parseFloat(row[colIdx]) || 0);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    return values.map(v => ((v - min) / range) * 100);
-  }, [data, columnIndex, showSparkline]);
-
-  // Early return AFTER all hooks
-  if (!data || !data.rows || data.rows.length === 0) {
-    return <div className="p-4 text-center text-gray-500 dark:text-gray-400">No data available</div>;
+  if (value === null) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
   }
 
-  const { value, trend } = statResult;
+  const display = typeof value === 'number' ? value.toFixed(decimals) : String(value);
+  const trendUp = trend !== null && trend > 0;
+  const trendColor = trend === null ? T.muted : trendUp ? T.green : T.red;
 
-  const formatValue = (val) => {
-    if (val === null || val === undefined) return 'N/A';
-    if (typeof val === 'number') return val.toFixed(decimals);
-    return val;
-  };
-
-  const getColor = () => {
-    if (colorMode === 'none' || !thresholds.length) return 'text-gray-900 dark:text-white';
-    const numValue = typeof value === 'number' ? value : parseFloat(value);
-    if (isNaN(numValue)) return 'text-gray-900 dark:text-white';
-    const sorted = [...thresholds].sort((a, b) => b.value - a.value);
-    for (const threshold of sorted) {
-      if (numValue >= threshold.value) {
-        return `text-${threshold.color}-600 dark:text-${threshold.color}-400`;
+  // Determine value color based on colorMode
+  const getValueColor = () => {
+    if (colorMode === 'fixed' && fixedColor) return fixedColor;
+    if (colorMode === 'threshold' && thresholds.length > 0 && typeof value === 'number') {
+      const sorted = [...thresholds].sort((a, b) => b.value - a.value);
+      for (const t of sorted) {
+        if (value >= parseFloat(t.value)) {
+          const colorMap = { red: T.red, orange: T.orange, green: T.green, blue: T.blue, yellow: T.orange };
+          return colorMap[t.color] || t.color;
+        }
       }
     }
-    return 'text-gray-900 dark:text-white';
+    return T.blue;
   };
-
-  const getTrendColor = () => {
-    if (trend === null) return '';
-    if (trend > 0) return 'text-green-600 dark:text-green-400';
-    if (trend < 0) return 'text-red-600 dark:text-red-400';
-    return 'text-gray-600 dark:text-gray-400';
-  };
-
-  const getTrendIcon = () => {
-    if (trend === null) return null;
-    if (trend > 0) return '↑';
-    if (trend < 0) return '↓';
-    return '→';
-  };
+  const valueColor = getValueColor();
 
   const renderSparkline = () => {
-    if (!sparklineData) return null;
-    const width = 120;
-    const height = 30;
-    const points = sparklineData.map((y, i) => {
-      const x = (i / (sparklineData.length - 1)) * width;
-      return `${x},${height - (y / 100) * height}`;
+    if (!sparkline) return null;
+    const W = 140, H = 36;
+    const pts = sparkline.map((y, i) => {
+      const x = (i / (sparkline.length - 1)) * W;
+      return `${x},${H - (y / 100) * (H - 4) - 2}`;
     }).join(' ');
     return (
-      <svg width={width} height={height} className="mt-2 opacity-60">
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <svg width={W} height={H} style={{ marginTop: 8, opacity: 0.7 }}>
+        <defs>
+          <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={T.blue} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={T.blue} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <polyline points={pts} fill="none" stroke={T.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   };
 
-  const fieldName = data.fields[Math.min(columnIndex, data.fields.length - 1)]?.name || 'Value';
-
   return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <div className={`text-6xl font-bold ${getColor()}`}>
-          {formatValue(value)}{unit}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <div style={{ textAlign: 'center' }}>
+        {/* Big value */}
+        <div style={{
+          fontSize: 52, fontWeight: 700, color: valueColor,
+          fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1,
+        }}>
+          {display}
+          {unit && <span style={{ fontSize: 24, fontWeight: 400, color: T.muted, marginLeft: 4 }}>{unit}</span>}
         </div>
 
-        {showTrend && trend !== null && (
-          <div className={`text-xl font-semibold mt-2 ${getTrendColor()}`}>
-            {getTrendIcon()} {Math.abs(trend).toFixed(1)}%
+        {/* Trend */}
+        {trend !== null && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 8 }}>
+            <span style={{ fontSize: 18, color: trendColor }}>{trendUp ? '↑' : '↓'}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: trendColor }}>{Math.abs(trend).toFixed(1)}%</span>
           </div>
         )}
 
-        <div className="text-lg text-gray-500 dark:text-gray-400 mt-3">
+        {/* Field name + aggregation */}
+        <div style={{ fontSize: 13, color: T.muted, marginTop: 10 }}>
           {fieldName}
           {aggregation !== 'last' && (
-            <span className="text-sm ml-2">({aggregation.toUpperCase()})</span>
+            <span style={{ fontSize: 10, color: T.dim, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>({aggregation})</span>
           )}
         </div>
 
-        {showSparkline && renderSparkline()}
+        {/* Sparkline */}
+        {renderSparkline()}
 
+        {/* Row count */}
         {data.rows.length > 1 && (
-          <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-            {data.rows.length} data points
-          </div>
+          <div style={{ fontSize: 10, color: T.dim, marginTop: 6 }}>{data.rows.length} data points</div>
         )}
       </div>
     </div>

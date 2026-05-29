@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { useTheme } from '../../../context/ThemeContext';
@@ -9,6 +9,14 @@ const COLORS = [
   '#5794f2', '#73bf69', '#f2cc0c', '#ff780a', '#f2495c',
   '#b877d9', '#fade2a', '#37872d', '#c4162a', '#8ab8ff',
 ];
+
+// Parse value — PostgreSQL returns bigint/numeric as strings
+const parseVal = (v) => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return v;
+  const n = parseFloat(v);
+  return isNaN(n) ? v : n;
+};
 
 const CustomTooltip = ({ active, payload, label, T }) => {
   if (!active || !payload?.length) return null;
@@ -33,7 +41,26 @@ const CustomTooltip = ({ active, payload, label, T }) => {
 
 const BarChartViz = ({ data, options = {} }) => {
   const { T } = useTheme();
-  const { stacked = false, horizontal = false } = options;
+  const {
+    stacked = false,
+    horizontal = false,
+    unit = '',
+    // seriesColors: override colors per Y column e.g. ['#f2495c', '#73bf69']
+    seriesColors = [],
+    // colorByValue: threshold coloring for single-series bars
+    // e.g. [{value: 20000, color: '#f2495c'}, {value: 10000, color: '#f2cc0c'}]
+    colorByValue = [],
+  } = options;
+
+  // Resolve color for a bar value (threshold-based)
+  const getBarColor = (baseColor, value) => {
+    if (!colorByValue.length || typeof value !== 'number') return baseColor;
+    const sorted = [...colorByValue].sort((a, b) => b.value - a.value);
+    for (const t of sorted) {
+      if (value >= parseFloat(t.value)) return t.color;
+    }
+    return baseColor;
+  };
 
   const { chartData, catCol, valCols } = useMemo(() => {
     if (!data?.rows?.length || !data?.fields?.length) {
@@ -102,11 +129,18 @@ const BarChartViz = ({ data, options = {} }) => {
           <YAxis type="category" dataKey={catCol} tick={axisStyle} axisLine={{ stroke: T.border }} tickLine={false} width={90} />
           <Tooltip content={<CustomTooltip T={T} />} cursor={{ fill: `${T.blue}11` }} />
           {valCols.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: T.muted }} />}
-          {valCols.map((col, i) => (
-            <Bar key={col} dataKey={col} fill={COLORS[i % COLORS.length]}
-              radius={[0, 3, 3, 0]} stackId={stacked ? 'stack' : undefined}
-              maxBarSize={32} />
-          ))}
+          {valCols.map((col, i) => {
+            const baseColor = seriesColors[i] || COLORS[i % COLORS.length];
+            return (
+              <Bar key={col} dataKey={col} fill={baseColor}
+                radius={[0, 3, 3, 0]} stackId={stacked ? 'stack' : undefined}
+                maxBarSize={32}>
+                {colorByValue.length > 0 && chartData.map((entry, idx) => (
+                  <rect key={idx} fill={getBarColor(baseColor, parseVal(entry[col]))} />
+                ))}
+              </Bar>
+            );
+          })}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -120,17 +154,26 @@ const BarChartViz = ({ data, options = {} }) => {
         <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatY} width={52} />
         <Tooltip content={<CustomTooltip T={T} />} cursor={{ fill: `${T.blue}11` }} />
         {valCols.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: T.muted, paddingTop: 6 }} />}
-        {valCols.map((col, i) => (
-          <Bar key={col} dataKey={col} fill={COLORS[i % COLORS.length]}
-            radius={[3, 3, 0, 0]} stackId={stacked ? 'stack' : undefined}
-            maxBarSize={60}>
-            {chartData.length <= 8 && (
-              <LabelList dataKey={col} position="top"
-                style={{ fill: T.muted, fontSize: 10, fontVariantNumeric: 'tabular-nums' }}
-                formatter={formatY} />
-            )}
-          </Bar>
-        ))}
+        {valCols.map((col, i) => {
+          const baseColor = seriesColors[i] || COLORS[i % COLORS.length];
+          // If colorByValue is set, use Cell for per-bar coloring
+          const useCellColor = colorByValue.length > 0 && valCols.length === 1;
+          return (
+            <Bar key={col} dataKey={col}
+              fill={useCellColor ? undefined : baseColor}
+              radius={[3, 3, 0, 0]} stackId={stacked ? 'stack' : undefined}
+              maxBarSize={60}>
+              {useCellColor && chartData.map((entry, idx) => (
+                <Cell key={idx} fill={getBarColor(baseColor, parseVal(entry[col]))} />
+              ))}
+              {chartData.length <= 8 && (
+                <LabelList dataKey={col} position="top"
+                  style={{ fill: T.muted, fontSize: 10, fontVariantNumeric: 'tabular-nums' }}
+                  formatter={formatY} />
+              )}
+            </Bar>
+          );
+        })}
       </BarChart>
     </ResponsiveContainer>
   );
