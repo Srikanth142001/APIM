@@ -30,23 +30,25 @@ class CustomDbService {
   }
 
   /**
-   * Load connections from file
+   * Load connections from file and recreate pools
    */
   loadConnections() {
     try {
       if (fs.existsSync(CONNECTIONS_FILE)) {
         const data = fs.readFileSync(CONNECTIONS_FILE, 'utf8');
         const saved = JSON.parse(data);
-        
-        // Restore connections (but not pools - those will be created on first use)
+
         for (const [id, config] of Object.entries(saved)) {
           this.connections.set(id, {
             ...config,
             createdAt: new Date(config.createdAt),
-            lastUsed: new Date(config.lastUsed)
+            lastUsed:  new Date(config.lastUsed)
           });
+
+          // Recreate pool — password is stored in full (not masked) in the file
+          this._createPool(id, config);
         }
-        
+
         console.log(`✅ Loaded ${this.connections.size} saved database connections`);
       }
     } catch (error) {
@@ -55,19 +57,59 @@ class CustomDbService {
   }
 
   /**
-   * Save connections to file
+   * Internal: create a pg Pool for a connection id + config
+   */
+  _createPool(connectionId, config) {
+    try {
+      const pool = new Pool({
+        host:     config.host,
+        port:     config.port || 5432,
+        database: config.database,
+        user:     config.username,
+        // Use _password (real backup) if available, then password field
+        // Never use '***' as actual password
+        password: config._password && config._password !== '***'
+          ? config._password
+          : (config.password && config.password !== '***' ? config.password : undefined),
+        max:      this.maxPoolSize,
+        min:      0,
+        idleTimeoutMillis:      30000,
+        connectionTimeoutMillis: 10000,
+        ssl: config.ssl ? { rejectUnauthorized: false } : false,
+        statement_timeout: this.queryTimeout,
+        query_timeout:     this.queryTimeout,
+        application_name:  'APIM_Dashboard_CustomQuery',
+      });
+
+      // Log pool errors without crashing
+      pool.on('error', (err) => {
+        console.error(`[Pool ${connectionId}] idle client error:`, err.message);
+      });
+
+      this.pools.set(connectionId, pool);
+    } catch (err) {
+      console.error(`⚠️  Failed to recreate pool for ${connectionId}:`, err.message);
+    }
+  }
+
+  /**
+   * Save connections to file — stores full config including real password
+   * Password is only masked in API responses (getConnections), never on disk
    */
   saveConnections() {
     try {
-      // Ensure directory exists
       if (!fs.existsSync(STORAGE_DIR)) {
         fs.mkdirSync(STORAGE_DIR, { recursive: true });
       }
 
-      // Convert Map to object for JSON serialization
       const data = {};
       for (const [id, config] of this.connections.entries()) {
-        data[id] = config;
+        // Save the full config with real password so pools can be recreated on restart
+        data[id] = {
+          ...config,
+          // Use _password (real) if available, otherwise use whatever is stored
+          password: config._password || config.password,
+        };
       }
 
       fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
@@ -85,56 +127,32 @@ class CustomDbService {
       // Validate configuration
       this.validateConfig(config);
 
-      // Close existing pool if exists
-      if (this.pools.has(connectionId)) {
-        await this.closeConnection(connectionId);
+      // Test the connection first
+      const testResult = await this.testConnection(config);
+      if (!testResult.success) {
+        throw new Error(testResult.message);
       }
 
-      // Create connection pool with safety settings
-      const pool = new Pool({
-        host: config.host,
-        port: config.port || 5432,
-        database: config.database,
-        user: config.username,
-        password: config.password,
-        
-        // Connection pool settings
-        max: this.maxPoolSize, // Maximum pool size
-        min: 1, // Minimum pool size
-        idleTimeoutMillis: 30000, // Close idle connections after 30s
-        connectionTimeoutMillis: 10000, // Connection timeout 10s
-        
-        // SSL settings (optional)
-        ssl: config.ssl ? { rejectUnauthorized: false } : false,
-        
-        // Statement timeout (prevent long queries)
-        statement_timeout: this.queryTimeout,
-        
-        // Query timeout
-        query_timeout: this.queryTimeout,
-        
-        // Application name for tracking
-        application_name: 'APIM_Dashboard_CustomQuery'
-      });
+      // Close existing pool if exists
+      if (this.pools.has(connectionId)) {
+        const old = this.pools.get(connectionId);
+        await old.end().catch(() => {});
+        this.pools.delete(connectionId);
+      }
 
-      // Test connection
-      const client = await pool.connect();
-      
-      // Set session to READ ONLY for safety
-      await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
-      
-      client.release();
+      // Create pool
+      this._createPool(connectionId, config);
 
-      // Store pool and config
-      this.pools.set(connectionId, pool);
+      // Store config with real password so pool can be recreated on restart
+      // Password is masked only in getConnections() API response
       this.connections.set(connectionId, {
         ...config,
-        password: '***', // Don't store plain password
+        _password: config.password,  // backup copy
         createdAt: new Date(),
-        lastUsed: new Date()
+        lastUsed:  new Date(),
       });
 
-      // Save to file
+      // Save to file (includes _password so pools survive restart)
       this.saveConnections();
 
       console.log(`✅ Database connection created: ${connectionId}`);
@@ -189,10 +207,17 @@ class CustomDbService {
    * Execute a query with safety checks
    */
   async executeQuery(connectionId, query, params = []) {
+    // If pool is missing but config exists, recreate it (handles server restart)
+    if (!this.pools.has(connectionId) && this.connections.has(connectionId)) {
+      const config = this.connections.get(connectionId);
+      this._createPool(connectionId, { ...config, password: config._password || config.password });
+      console.log(`🔄 Recreated pool for connection: ${connectionId}`);
+    }
+
     const pool = this.pools.get(connectionId);
-    
+
     if (!pool) {
-      throw new Error('Connection not found. Please create a connection first.');
+      throw new Error('Connection not found. Please re-save the connection in the Connections panel.');
     }
 
     // Validate query (basic safety checks)
@@ -331,21 +356,24 @@ class CustomDbService {
   }
 
   /**
-   * Get all active connections
+   * Get all connections — masks password in API response
    */
   getConnections() {
     const connections = [];
     for (const [id, config] of this.connections.entries()) {
       connections.push({
         id,
-        name: config.name,
-        host: config.host,
-        port: config.port,
-        database: config.database,
-        username: config.username,
+        name:      config.name,
+        host:      config.host,
+        port:      config.port,
+        database:  config.database,
+        username:  config.username,
+        ssl:       config.ssl,
         createdAt: config.createdAt,
-        lastUsed: config.lastUsed,
-        isActive: this.pools.has(id)
+        lastUsed:  config.lastUsed,
+        isActive:  this.pools.has(id),
+        // Never expose password in API response
+        password:  config.password && config.password !== '***' ? '***' : config.password,
       });
     }
     return connections;
