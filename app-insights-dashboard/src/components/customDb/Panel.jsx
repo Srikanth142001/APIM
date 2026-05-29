@@ -132,7 +132,7 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
         </div>
 
         {/* viz */}
-        <div style={{ flex: 1, minHeight: 0, padding: '10px 12px', overflow: 'hidden', background: T.chartBg }}>
+        <div style={{ flex: 1, minHeight: 0, padding: panel.visualizationType === 'table' ? 0 : '10px 12px', overflow: 'auto', background: T.chartBg }}>
           {renderViz()}
         </div>
       </div>

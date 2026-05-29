@@ -1,76 +1,109 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useTheme } from '../../../context/ThemeContext';
 
 const TableViz = ({ data }) => {
-  const [sortColumn, setSortColumn] = useState(null);
-  const [sortDirection, setSortDirection] = useState('asc');
+  const { T } = useTheme();
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
 
   if (!data || !data.rows || data.rows.length === 0) {
-    return <div className="p-4 text-center text-gray-500 dark:text-gray-400">No data available</div>;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>
+        No data available
+      </div>
+    );
   }
 
-  const handleSort = (columnIndex) => {
-    if (sortColumn === columnIndex) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(columnIndex);
-      setSortDirection('asc');
-    }
+  const handleSort = (idx) => {
+    if (sortCol === idx) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(idx); setSortDir('asc'); }
   };
 
-  let sortedRows = [...data.rows];
-  if (sortColumn !== null) {
-    sortedRows.sort((a, b) => {
-      const aVal = a[sortColumn];
-      const bVal = b[sortColumn];
-      
-      if (aVal === null) return 1;
-      if (bVal === null) return -1;
-      
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-      
-      const aStr = String(aVal);
-      const bStr = String(bVal);
-      return sortDirection === 'asc' 
-        ? aStr.localeCompare(bStr)
-        : bStr.localeCompare(aStr);
-    });
-  }
+  const sorted = [...data.rows].sort((a, b) => {
+    if (sortCol === null) return 0;
+    const av = a[sortCol], bv = b[sortCol];
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
+    return sortDir === 'asc'
+      ? String(av).localeCompare(String(bv))
+      : String(bv).localeCompare(String(av));
+  });
+
+  // Format cell values
+  const fmt = (val) => {
+    if (val === null || val === undefined) return <span style={{ color: T.dim, fontStyle: 'italic' }}>null</span>;
+    const s = String(val);
+    // Format ISO timestamps to readable date
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s)) {
+      try {
+        return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      } catch (_) {}
+    }
+    return s;
+  };
 
   return (
-    <div className="overflow-auto h-full">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
-          <tr>
-            {data.fields.map((field, idx) => (
+    <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+          <tr style={{ background: T.panel }}>
+            {data.fields.map((field, i) => (
               <th
-                key={idx}
-                onClick={() => handleSort(idx)}
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                key={i}
+                onClick={() => handleSort(i)}
+                style={{
+                  padding: '8px 12px',
+                  textAlign: 'left',
+                  color: sortCol === i ? T.text : T.muted,
+                  fontWeight: 600,
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  borderBottom: `1px solid ${T.border}`,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  userSelect: 'none',
+                  transition: 'color 0.12s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = T.text}
+                onMouseLeave={e => e.currentTarget.style.color = sortCol === i ? T.text : T.muted}
               >
-                <div className="flex items-center gap-1">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {field.name}
-                  {sortColumn === idx && (
-                    <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                  )}
-                </div>
+                  <span style={{ fontSize: 9, color: sortCol === i ? T.blue : T.dim }}>
+                    {sortCol === i ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                  </span>
+                </span>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-          {sortedRows.map((row, rowIdx) => (
-            <tr key={rowIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-              {row.map((cell, cellIdx) => (
-                <td key={cellIdx} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-300 whitespace-nowrap">
-                  {cell === null ? (
-                    <span className="text-gray-400 italic">NULL</span>
-                  ) : (
-                    String(cell)
-                  )}
-                </td>
-              ))}
+        <tbody>
+          {sorted.map((row, ri) => (
+            <tr
+              key={ri}
+              style={{ borderBottom: `1px solid ${T.border}`, transition: 'background 0.1s' }}
+              onMouseEnter={e => e.currentTarget.style.background = T.panel}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              {row.map((cell, ci) => {
+                const isNum = typeof cell === 'number';
+                return (
+                  <td
+                    key={ci}
+                    style={{
+                      padding: '7px 12px',
+                      color: isNum ? T.green : T.text,
+                      whiteSpace: 'nowrap',
+                      fontVariantNumeric: isNum ? 'tabular-nums' : 'normal',
+                      fontSize: 12,
+                    }}
+                  >
+                    {fmt(cell)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

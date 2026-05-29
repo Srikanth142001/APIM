@@ -46,7 +46,10 @@ class CustomDbService {
           });
 
           // Recreate pool — password is stored in full (not masked) in the file
-          this._createPool(id, config);
+          // For old entries with '***', pool will fail on connect but that's
+          // handled gracefully in executeQuery with a clear error message
+          const realPassword = config._password || (config.password !== '***' ? config.password : undefined);
+          this._createPool(id, { ...config, password: realPassword });
         }
 
         console.log(`✅ Loaded ${this.connections.size} saved database connections`);
@@ -207,17 +210,19 @@ class CustomDbService {
    * Execute a query with safety checks
    */
   async executeQuery(connectionId, query, params = []) {
-    // If pool is missing but config exists, recreate it (handles server restart)
+    // If pool is missing but config exists, recreate it on-demand
     if (!this.pools.has(connectionId) && this.connections.has(connectionId)) {
       const config = this.connections.get(connectionId);
-      this._createPool(connectionId, { ...config, password: config._password || config.password });
-      console.log(`🔄 Recreated pool for connection: ${connectionId}`);
+      const realPassword = config._password || (config.password !== '***' ? config.password : undefined);
+      this._createPool(connectionId, { ...config, password: realPassword });
+      console.log(`🔄 Recreated pool on-demand for: ${connectionId}`);
     }
 
     const pool = this.pools.get(connectionId);
 
     if (!pool) {
-      throw new Error('Connection not found. Please re-save the connection in the Connections panel.');
+      // Connection config not found at all
+      throw new Error('Connection not found. Please add the connection in the Connections panel first.');
     }
 
     // Validate query (basic safety checks)
@@ -261,12 +266,19 @@ class CustomDbService {
 
     } catch (error) {
       console.error(`Query execution error on ${connectionId}:`, error.message);
-      
+
       // Check if it's a timeout error
       if (error.message.includes('timeout') || error.message.includes('canceling statement')) {
         throw new Error(`Query timeout: Execution exceeded ${this.queryTimeout / 1000} seconds`);
       }
-      
+
+      // Check if it's an auth error (likely old masked password)
+      if (error.message.includes('password authentication failed') ||
+          error.message.includes('authentication failed') ||
+          error.message.includes('no pg_hba.conf entry')) {
+        throw new Error(`Authentication failed. Please re-save the connection with the correct password in the Connections panel.`);
+      }
+
       throw new Error(`Query failed: ${error.message}`);
 
     } finally {
