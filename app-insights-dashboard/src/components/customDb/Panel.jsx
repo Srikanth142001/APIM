@@ -9,6 +9,7 @@ import LineChartViz from './visualizations/LineChartViz';
 import BarChartViz from './visualizations/BarChartViz';
 import PieChartViz from './visualizations/PieChartViz';
 import GaugeViz from './visualizations/GaugeViz';
+import ScatterViz from './visualizations/ScatterViz';
 
 const PBtn = ({ onClick, disabled, title, children, T, danger }) => (
   <button onClick={onClick} disabled={disabled} title={title}
@@ -82,13 +83,15 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
     if (!data) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
 
     switch (panel.visualizationType) {
-      case 'table': return <TableViz    data={data} options={panel.options} />;
-      case 'stat':  return <StatViz     data={data} options={panel.options} />;
-      case 'line':  return <LineChartViz data={data} options={panel.options} />;
-      case 'bar':   return <BarChartViz data={data} options={panel.options} />;
-      case 'pie':   return <PieChartViz data={data} options={panel.options} />;
-      case 'gauge': return <GaugeViz    data={data} options={panel.options} />;
-      default:      return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>Unknown viz: {panel.visualizationType}</div>;
+      case 'table':   return <TableViz    data={data} options={panel.options} />;
+      case 'stat':    return <StatViz     data={data} options={panel.options} />;
+      case 'line':    return <LineChartViz data={data} options={{ ...panel.options, areaMode: false }} />;
+      case 'area':    return <LineChartViz data={data} options={{ ...panel.options, areaMode: true }} />;
+      case 'bar':     return <BarChartViz data={data} options={panel.options} />;
+      case 'pie':     return <PieChartViz data={data} options={panel.options} />;
+      case 'gauge':   return <GaugeViz    data={data} options={panel.options} />;
+      case 'scatter': return <ScatterViz  data={data} options={panel.options} />;
+      default:        return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>Unknown viz: {panel.visualizationType}</div>;
     }
   };
 

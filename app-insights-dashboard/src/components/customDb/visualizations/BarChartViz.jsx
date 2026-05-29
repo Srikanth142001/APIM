@@ -69,6 +69,10 @@ const BarChartViz = ({ data, options = {} }) => {
 
     const fields = data.fields;
 
+    // Use user-configured columns if set, otherwise auto-detect
+    const xColName = options.xAxisColumn || null;
+    const yColNames = options.yAxisColumns?.length ? options.yAxisColumns : null;
+
     // Auto-detect: first string/non-numeric col = category, rest = values
     let catIdx = 0;
     const valIdxs = [];
@@ -88,20 +92,26 @@ const BarChartViz = ({ data, options = {} }) => {
       for (let i = 1; i < fields.length; i++) valIdxs.push(i);
     }
 
+    // Apply user overrides
+    const resolvedCatCol = xColName || fields[catIdx]?.name || fields[0]?.name;
+    const resolvedValCols = yColNames || valIdxs.map(i => fields[i]?.name).filter(Boolean);
+
     const rows = data.rows.map(row => {
       const obj = {};
       fields.forEach((f, i) => {
-        obj[f.name] = typeof row[i] === 'number' ? row[i] : (parseFloat(row[i]) || row[i]);
+        // Parse string numbers (PostgreSQL bigint/numeric come as strings)
+        const v = row[i];
+        obj[f.name] = (typeof v === 'string' && v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : v;
       });
       return obj;
     });
 
     return {
       chartData: rows,
-      catCol:    fields[catIdx]?.name || fields[0]?.name,
-      valCols:   valIdxs.map(i => fields[i]?.name).filter(Boolean),
+      catCol:    resolvedCatCol,
+      valCols:   resolvedValCols,
     };
-  }, [data]);
+  }, [data, options]);
 
   if (!chartData.length) {
     return (

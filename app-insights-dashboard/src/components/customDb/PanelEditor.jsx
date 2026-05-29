@@ -5,12 +5,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { FaTimes, FaSave, FaPlay, FaDatabase, FaCheckCircle } from 'react-icons/fa';
 
 const VIZ_TYPES = [
-  { value: 'table', label: '📋 Table'      },
-  { value: 'stat',  label: '🔢 Stat'       },
-  { value: 'line',  label: '📈 Line Chart' },
-  { value: 'bar',   label: '📊 Bar Chart'  },
-  { value: 'pie',   label: '🥧 Pie Chart'  },
-  { value: 'gauge', label: '🎯 Gauge'      },
+  { value: 'table',  label: '📋 Table'       },
+  { value: 'stat',   label: '🔢 Stat'        },
+  { value: 'line',   label: '📈 Line Chart'  },
+  { value: 'area',   label: '🌊 Area Chart'  },
+  { value: 'bar',    label: '📊 Bar Chart'   },
+  { value: 'pie',    label: '🥧 Pie Chart'   },
+  { value: 'gauge',  label: '🎯 Gauge'       },
+  { value: 'scatter',label: '⚡ Scatter Plot' },
 ];
 
 const REFRESH_OPTIONS = [
@@ -309,61 +311,312 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
           )}
 
           {/* ── OPTIONS TAB ── */}
-          {tab === 'options' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
-                {lbl('Description')}
-                <input type="text" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Optional panel description" style={inp} />
-              </div>
+          {tab === 'options' && (() => {
+            const fields = testResult?.fields || [];
+            const noFields = fields.length === 0;
+            const viz = form.visualizationType;
+            const setOpt = (key, val) => setForm(p => ({ ...p, options: { ...p.options, [key]: val } }));
 
-              {/* stat options */}
-              {form.visualizationType === 'stat' && (
-                <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>Stat Options</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div>
-                      {lbl('Column to display')}
-                      <select value={form.options.columnIndex ?? 0} onChange={e => setForm(p => ({ ...p, options: { ...p.options, columnIndex: parseInt(e.target.value) } }))}
-                        style={{ ...inp, cursor: 'pointer' }}>
-                        {testResult?.fields?.length > 0
-                          ? testResult.fields.map((f, i) => <option key={i} value={i} style={{ background: T.surface }}>[{i}] {f.name}</option>)
-                          : <option value={0} style={{ background: T.surface }}>Run query first to see columns</option>
-                        }
-                      </select>
-                      {!testResult && <div style={{ fontSize: 10, color: T.orange, marginTop: 4 }}>⚠ Run query in Query tab first</div>}
+            const FieldSelect = ({ label: lbText, optKey, placeholder }) => (
+              <div>
+                {lbl(lbText)}
+                {noFields
+                  ? <div style={{ ...inp, color: T.dim, fontSize: 11 }}>Run query first</div>
+                  : <select value={form.options[optKey] || ''} onChange={e => setOpt(optKey, e.target.value)}
+                      style={{ ...inp, cursor: 'pointer' }}>
+                      <option value="" style={{ background: T.surface }}>{placeholder || '— auto detect —'}</option>
+                      {fields.map((f, i) => <option key={i} value={f.name} style={{ background: T.surface }}>{f.name}</option>)}
+                    </select>
+                }
+              </div>
+            );
+
+            const MultiFieldSelect = ({ label: lbText, optKey }) => (
+              <div>
+                {lbl(lbText)}
+                {noFields
+                  ? <div style={{ ...inp, color: T.dim, fontSize: 11 }}>Run query first</div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {fields.map((f, i) => {
+                        const sel = (form.options[optKey] || []).includes(f.name);
+                        return (
+                          <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 8px', background: sel ? `${T.blue}14` : 'transparent', border: `1px solid ${sel ? T.blue + '44' : T.border}`, cursor: 'pointer', fontSize: 12, color: sel ? T.blue : T.text, transition: 'all 0.1s' }}>
+                            <input type="checkbox" checked={sel} onChange={e => {
+                              const cur = form.options[optKey] || [];
+                              setOpt(optKey, e.target.checked ? [...cur, f.name] : cur.filter(n => n !== f.name));
+                            }} />
+                            {f.name}
+                          </label>
+                        );
+                      })}
                     </div>
-                    <div>
-                      {lbl('Aggregation')}
-                      <select value={form.options.aggregation || 'last'} onChange={e => setForm(p => ({ ...p, options: { ...p.options, aggregation: e.target.value } }))}
-                        style={{ ...inp, cursor: 'pointer' }}>
-                        {[['last','Last value'],['first','First value'],['sum','Sum'],['avg','Average'],['min','Minimum'],['max','Maximum'],['count','Count']].map(([v,l]) =>
-                          <option key={v} value={v} style={{ background: T.surface }}>{l}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      {lbl('Unit suffix')}
-                      <input type="text" value={form.options.unit || ''} onChange={e => setForm(p => ({ ...p, options: { ...p.options, unit: e.target.value } }))}
-                        placeholder="e.g. ms, %, req/s" style={inp} />
-                    </div>
-                    <div>
-                      {lbl('Decimal places')}
-                      <input type="number" min={0} max={6} value={form.options.decimals ?? 0} onChange={e => setForm(p => ({ ...p, options: { ...p.options, decimals: parseInt(e.target.value) || 0 } }))}
-                        style={inp} />
-                    </div>
+                }
+              </div>
+            );
+
+            // Color threshold builder
+            const ThresholdBuilder = ({ optKey, label: lbText }) => {
+              const thresholds = form.options[optKey] || [];
+              const PRESET_COLORS = ['#f2495c','#ff780a','#f2cc0c','#73bf69','#5794f2','#b877d9'];
+              return (
+                <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{lbText}</div>
+                    <button onClick={() => setOpt(optKey, [...thresholds, { value: 0, color: '#f2495c' }])}
+                      style={{ padding: '3px 10px', background: `${T.blue}22`, border: `1px solid ${T.blue}44`, color: T.blue, fontSize: 11, cursor: 'pointer' }}>
+                      + Add
+                    </button>
                   </div>
-                  <div style={{ display: 'flex', gap: 20, marginTop: 14 }}>
-                    {[['showSparkline','Show sparkline'],['showTrend','Show trend %']].map(([key, label]) => (
-                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={form.options[key] === true} onChange={e => setForm(p => ({ ...p, options: { ...p.options, [key]: e.target.checked } }))} />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
+                  {thresholds.length === 0
+                    ? <div style={{ fontSize: 11, color: T.dim }}>No thresholds — add one to enable color coding</div>
+                    : thresholds.map((t, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, color: T.muted, width: 60, flexShrink: 0 }}>≥ value</span>
+                          <input type="number" value={t.value} onChange={e => {
+                            const next = [...thresholds]; next[i] = { ...t, value: parseFloat(e.target.value) || 0 };
+                            setOpt(optKey, next);
+                          }} style={{ ...inp, width: 90 }} />
+                          <span style={{ fontSize: 11, color: T.muted, flexShrink: 0 }}>color</span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {PRESET_COLORS.map(c => (
+                              <button key={c} onClick={() => {
+                                const next = [...thresholds]; next[i] = { ...t, color: c };
+                                setOpt(optKey, next);
+                              }} style={{ width: 18, height: 18, borderRadius: 3, background: c, border: t.color === c ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
+                            ))}
+                          </div>
+                          <input type="text" value={t.color} onChange={e => {
+                            const next = [...thresholds]; next[i] = { ...t, color: e.target.value };
+                            setOpt(optKey, next);
+                          }} style={{ ...inp, width: 80, fontFamily: 'monospace', fontSize: 11 }} placeholder="#hex" />
+                          <button onClick={() => setOpt(optKey, thresholds.filter((_, j) => j !== i))}
+                            style={{ padding: '3px 6px', background: 'transparent', border: 'none', color: T.red, cursor: 'pointer', fontSize: 13 }}>×</button>
+                        </div>
+                      ))
+                  }
+                  {thresholds.length > 0 && (
+                    <div style={{ fontSize: 10, color: T.dim, marginTop: 6 }}>
+                      Thresholds are checked from highest to lowest value
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              );
+            };
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Description */}
+                <div>
+                  {lbl('Description')}
+                  <input type="text" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Optional panel description" style={inp} />
+                </div>
+
+                {noFields && (
+                  <div style={{ padding: '10px 14px', background: `${T.orange}14`, border: `1px solid ${T.orange}44`, color: T.orange, fontSize: 12 }}>
+                    ⚠ Run your query in the Query tab first to configure axis and color options
+                  </div>
+                )}
+
+                {/* ── BAR / LINE / AREA ── */}
+                {(viz === 'bar' || viz === 'line' || viz === 'area') && (
+                  <>
+                    <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Axis Configuration</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <FieldSelect label="X Axis (Category)" optKey="xAxisColumn" placeholder="— auto (first column) —" />
+                        <MultiFieldSelect label="Y Axis (Values — check all you want)" optKey="yAxisColumns" />
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+                        {viz === 'bar' && (
+                          <>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={form.options.stacked === true} onChange={e => setOpt('stacked', e.target.checked)} />
+                              Stacked
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={form.options.horizontal === true} onChange={e => setOpt('horizontal', e.target.checked)} />
+                              Horizontal bars
+                            </label>
+                          </>
+                        )}
+                        {(viz === 'line' || viz === 'area') && (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={form.options.areaMode === true} onChange={e => setOpt('areaMode', e.target.checked)} />
+                            Area fill
+                          </label>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 12 }}>
+                        {lbl('Y Axis unit suffix')}
+                        <input type="text" value={form.options.unit || ''} onChange={e => setOpt('unit', e.target.value)}
+                          placeholder="e.g. ms, $, %" style={{ ...inp, width: 140 }} />
+                      </div>
+                    </div>
+
+                    {/* Color coding for bar */}
+                    {viz === 'bar' && (
+                      <ThresholdBuilder optKey="colorByValue" label="Color Coding — Bar Thresholds" />
+                    )}
+
+                    {/* Series colors */}
+                    <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Series Colors</div>
+                      <div style={{ fontSize: 11, color: T.dim, marginBottom: 8 }}>Override default colors for each Y column (leave blank for auto)</div>
+                      {(form.options.yAxisColumns?.length > 0 ? form.options.yAxisColumns : fields.slice(1).map(f => f.name)).map((col, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, color: T.text, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{col}</span>
+                          <input type="color" value={(form.options.seriesColors || [])[i] || '#5794f2'}
+                            onChange={e => {
+                              const cur = [...(form.options.seriesColors || [])];
+                              cur[i] = e.target.value;
+                              setOpt('seriesColors', cur);
+                            }}
+                            style={{ width: 36, height: 28, border: `1px solid ${T.border2}`, cursor: 'pointer', background: 'transparent', padding: 2 }}
+                          />
+                          <span style={{ fontSize: 11, color: T.dim }}>{(form.options.seriesColors || [])[i] || 'auto'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* ── PIE ── */}
+                {viz === 'pie' && (
+                  <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Pie Chart Configuration</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <FieldSelect label="Label Column (Name)" optKey="nameColumn" placeholder="— auto (first string col) —" />
+                      <FieldSelect label="Value Column" optKey="valueColumn" placeholder="— auto (first numeric col) —" />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer', marginTop: 12 }}>
+                      <input type="checkbox" checked={form.options.donutMode === true} onChange={e => setOpt('donutMode', e.target.checked)} />
+                      Donut mode
+                    </label>
+                  </div>
+                )}
+
+                {/* ── STAT ── */}
+                {viz === 'stat' && (
+                  <>
+                    <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Stat Configuration</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div>
+                          {lbl('Column to display')}
+                          <select value={form.options.columnIndex ?? 0} onChange={e => setOpt('columnIndex', parseInt(e.target.value))}
+                            style={{ ...inp, cursor: 'pointer' }}>
+                            {fields.length > 0
+                              ? fields.map((f, i) => <option key={i} value={i} style={{ background: T.surface }}>[{i}] {f.name}</option>)
+                              : <option value={0} style={{ background: T.surface }}>Run query first</option>}
+                          </select>
+                        </div>
+                        <div>
+                          {lbl('Aggregation')}
+                          <select value={form.options.aggregation || 'last'} onChange={e => setOpt('aggregation', e.target.value)}
+                            style={{ ...inp, cursor: 'pointer' }}>
+                            {[['last','Last'],['first','First'],['sum','Sum'],['avg','Average'],['min','Min'],['max','Max'],['count','Count']].map(([v,l]) =>
+                              <option key={v} value={v} style={{ background: T.surface }}>{l}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          {lbl('Unit suffix')}
+                          <input type="text" value={form.options.unit || ''} onChange={e => setOpt('unit', e.target.value)} placeholder="ms, %, $" style={inp} />
+                        </div>
+                        <div>
+                          {lbl('Decimal places')}
+                          <input type="number" min={0} max={6} value={form.options.decimals ?? 0} onChange={e => setOpt('decimals', parseInt(e.target.value) || 0)} style={inp} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
+                        {[['showSparkline','Sparkline'],['showTrend','Trend %']].map(([key, label]) => (
+                          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={form.options[key] === true} onChange={e => setOpt(key, e.target.checked)} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Stat color coding */}
+                    <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Color Mode</div>
+                      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                        {[['none','None'],['threshold','Threshold'],['fixed','Fixed']].map(([v,l]) => (
+                          <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, color: form.options.colorMode === v ? T.blue : T.text, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="radio" name="colorMode" value={v} checked={(form.options.colorMode || 'none') === v} onChange={() => setOpt('colorMode', v)} />
+                            {l}
+                          </label>
+                        ))}
+                      </div>
+                      {form.options.colorMode === 'fixed' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {lbl('Color')}
+                          <input type="color" value={form.options.fixedColor || '#5794f2'} onChange={e => setOpt('fixedColor', e.target.value)}
+                            style={{ width: 36, height: 28, border: `1px solid ${T.border2}`, cursor: 'pointer', background: 'transparent', padding: 2 }} />
+                        </div>
+                      )}
+                      {form.options.colorMode === 'threshold' && (
+                        <ThresholdBuilder optKey="thresholds" label="Thresholds" />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* ── GAUGE ── */}
+                {viz === 'gauge' && (
+                  <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Gauge Configuration</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                      <FieldSelect label="Value Column" optKey="valueColumn" placeholder="— auto —" />
+                      <div>
+                        {lbl('Min value')}
+                        <input type="number" value={form.options.minValue ?? 0} onChange={e => setOpt('minValue', parseFloat(e.target.value) || 0)} style={inp} />
+                      </div>
+                      <div>
+                        {lbl('Max value')}
+                        <input type="number" value={form.options.maxValue ?? 100} onChange={e => setOpt('maxValue', parseFloat(e.target.value) || 100)} style={inp} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                      <div>
+                        {lbl('Unit suffix')}
+                        <input type="text" value={form.options.unit || ''} onChange={e => setOpt('unit', e.target.value)} placeholder="%" style={inp} />
+                      </div>
+                      <div>
+                        {lbl('Decimal places')}
+                        <input type="number" min={0} max={4} value={form.options.decimals ?? 1} onChange={e => setOpt('decimals', parseInt(e.target.value) || 0)} style={inp} />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <ThresholdBuilder optKey="thresholds" label="Color Thresholds" />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TABLE ── */}
+                {viz === 'table' && !noFields && (
+                  <div style={{ background: T.panel, border: `1px solid ${T.border}`, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Visible Columns</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fields.map((f, i) => {
+                        const hidden = (form.options.hiddenColumns || []).includes(f.name);
+                        return (
+                          <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!hidden} onChange={e => {
+                              const cur = form.options.hiddenColumns || [];
+                              setOpt('hiddenColumns', e.target.checked ? cur.filter(n => n !== f.name) : [...cur, f.name]);
+                            }} />
+                            {f.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* error */}

@@ -35,6 +35,9 @@ const LineChartViz = ({ data, options = {} }) => {
     if (!data?.rows?.length || !data?.fields?.length) return { chartData: [], xCol: '', yCols: [] };
     const fields = data.fields;
 
+    const xColName = xAxisColumn || null;
+    const yColNames = yAxisColumns?.length ? yAxisColumns : null;
+
     // Auto-detect x (first string/date col) and y (numeric cols)
     let xIdx = 0;
     const yIdxs = [];
@@ -46,8 +49,8 @@ const LineChartViz = ({ data, options = {} }) => {
     }
     if (yIdxs.length === 0) { for (let i = 1; i < fields.length; i++) yIdxs.push(i); }
 
-    const xColName = xAxisColumn || fields[xIdx]?.name;
-    const yColNames = yAxisColumns?.length ? yAxisColumns : yIdxs.map(i => fields[i]?.name).filter(Boolean);
+    const resolvedXCol = xColName || fields[xIdx]?.name;
+    const resolvedYCols = yColNames || yIdxs.map(i => fields[i]?.name).filter(Boolean);
 
     const rows = data.rows.map(row => {
       const obj = {};
@@ -55,7 +58,7 @@ const LineChartViz = ({ data, options = {} }) => {
         let v = row[i];
         // Parse string numbers (PostgreSQL returns bigint/numeric as strings)
         if (typeof v === 'string' && v !== '' && !isNaN(parseFloat(v))) v = parseFloat(v);
-        if (f.name === xColName && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+        if (f.name === resolvedXCol && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
           try { v = new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); } catch (_) {}
         }
         obj[f.name] = v;
@@ -63,7 +66,7 @@ const LineChartViz = ({ data, options = {} }) => {
       return obj;
     });
 
-    return { chartData: rows, xCol: xColName, yCols: yColNames };
+    return { chartData: rows, xCol: resolvedXCol, yCols: resolvedYCols };
   }, [data, xAxisColumn, yAxisColumns]);
 
   if (!chartData.length) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
