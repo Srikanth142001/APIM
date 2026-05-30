@@ -82,27 +82,33 @@ const LineChartViz = ({ data, options = {} }) => {
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
         <defs>
-          {yCols.map((col, i) => (
-            <linearGradient key={col} id={`lg-${i}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.25} />
-              <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.02} />
-            </linearGradient>
-          ))}
+          {yCols.map((col, i) => {
+            const c = (seriesColors && seriesColors[i]) ? seriesColors[i] : COLORS[i % COLORS.length];
+            return (
+              <linearGradient key={col} id={`lg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={c} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={c} stopOpacity={0.02} />
+              </linearGradient>
+            );
+          })}
         </defs>
         <CartesianGrid strokeDasharray="0" stroke={T.gridLine} vertical={false} />
         <XAxis dataKey={xCol} tick={{ fill: T.muted, fontSize: 10 }} axisLine={{ stroke: T.border }} tickLine={false} interval="preserveStartEnd" minTickGap={40} />
         <YAxis tick={{ fill: T.muted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtY} width={52} />
         <Tooltip content={<Tip T={T} />} cursor={{ stroke: T.border2, strokeWidth: 1 }} />
         {yCols.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: T.muted, paddingTop: 6 }} />}
-        {yCols.map((col, i) => areaMode ? (
-          <Area key={col} type={smooth ? 'monotone' : 'linear'} dataKey={col}
-            stroke={COLORS[i % COLORS.length]} strokeWidth={2}
-            fill={`url(#lg-${i})`} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-        ) : (
-          <Line key={col} type={smooth ? 'monotone' : 'linear'} dataKey={col}
-            stroke={COLORS[i % COLORS.length]} strokeWidth={2}
-            dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-        ))}
+        {yCols.map((col, i) => {
+          const color = (seriesColors && seriesColors[i]) ? seriesColors[i] : COLORS[i % COLORS.length];
+          return areaMode ? (
+            <Area key={col} type={smooth ? 'monotone' : 'linear'} dataKey={col}
+              stroke={color} strokeWidth={2}
+              fill={`url(#lg-${i})`} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+          ) : (
+            <Line key={col} type={smooth ? 'monotone' : 'linear'} dataKey={col}
+              stroke={color} strokeWidth={2}
+              dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+          );
+        })}
       </ComposedChart>
     </ResponsiveContainer>
   );

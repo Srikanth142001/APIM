@@ -33,8 +33,8 @@ const CustomTooltip = ({ active, payload, T }) => {
 
 const PieChartViz = ({ data, options = {} }) => {
   const { T } = useTheme();
-
-  const { donutMode = false } = options;
+  const { donutMode = false, seriesColors = [] } = options;
+  const getColor = (i) => (seriesColors && seriesColors[i]) ? seriesColors[i] : COLORS[i % COLORS.length];
 
   const chartData = useMemo(() => {
     if (!data?.rows?.length || !data?.fields?.length) return [];
@@ -108,7 +108,7 @@ const PieChartViz = ({ data, options = {} }) => {
             stroke={T.chartBg}
           >
             {chartData.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              <Cell key={i} fill={getColor(i)} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip T={T} />} />
