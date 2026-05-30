@@ -122,11 +122,19 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
 
   const handleSave = async () => {
     if (!form.title.trim()) { setError('Panel title is required'); return; }
+    // Include ALL queries that have a connection, even if query is empty (user might be editing)
     const valid = form.queries.filter(q => q.connectionId && q.query?.trim());
-    if (valid.length === 0) { setError('At least one query with a connection is required'); return; }
+    // But save ALL queries regardless (don't filter out incomplete ones during save)
+    const allQueries = form.queries.filter(q => q.connectionId);
+    if (allQueries.length === 0) { setError('At least one query with a connection is required'); return; }
     setSaving(true); setError(null);
     try {
-      const payload = { ...form, queries: valid, connectionId: valid[0].connectionId, query: valid[0].query };
+      const payload = {
+        ...form,
+        queries: form.queries, // save ALL queries, not just valid ones
+        connectionId: form.queries[0]?.connectionId || '',
+        query: form.queries[0]?.query || '',
+      };
       if (panel) { await axios.put(API_BASE_URL + '/api/custom-db/panels/' + panel.id, payload); }
       else       { await axios.post(API_BASE_URL + '/api/custom-db/dashboards/' + dashboardId + '/panels', payload); }
       onClose();

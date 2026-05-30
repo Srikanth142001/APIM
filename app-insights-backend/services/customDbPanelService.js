@@ -252,6 +252,7 @@ class CustomDbPanelService {
       description: data.description !== undefined ? data.description : panel.description,
       connectionId: data.connectionId !== undefined ? data.connectionId : panel.connectionId,
       query: data.query !== undefined ? data.query : panel.query,
+      queries: data.queries !== undefined ? data.queries : panel.queries,
       visualizationType: data.visualizationType !== undefined ? data.visualizationType : panel.visualizationType,
       refreshInterval: data.refreshInterval !== undefined ? data.refreshInterval : panel.refreshInterval,
       position: data.position !== undefined ? data.position : panel.position,
