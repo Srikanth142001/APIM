@@ -41,7 +41,47 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
     setLoading(true); setError(null);
     try {
       const r = await axios.post(`${API_BASE_URL}/api/custom-db/panels/${panel.id}/execute`);
-      if (r.data.success) { setData(r.data); setLastUpdate(new Date()); }
+
+      if (r.data.multiQuery && r.data.queries) {
+        // Multi-query: merge results for visualization
+        const successQueries = r.data.queries.filter(q => q.success && q.data);
+
+        if (successQueries.length === 0) {
+          setError('All queries failed');
+          setLoading(false);
+          return;
+        }
+
+        if (successQueries.length === 1) {
+          // Single successful query — use directly
+          setData({ ...successQueries[0].data, success: true });
+        } else {
+          // Multiple queries — merge by combining rows and adding a source column
+          const firstFields = successQueries[0].data.fields;
+          const mergedRows = [];
+          successQueries.forEach(q => {
+            q.data.rows.forEach(row => {
+              mergedRows.push([...row, q.label || q.id]);
+            });
+          });
+          const mergedFields = [...firstFields, { name: '_query', dataType: 25 }];
+          setData({
+            success: true,
+            fields: mergedFields,
+            rows: mergedRows,
+            rowCount: mergedRows.length,
+            executionTime: Math.max(...successQueries.map(q => q.data.executionTime || 0)),
+            _multiQuery: true,
+            _queries: successQueries,
+          });
+        }
+        setLastUpdate(new Date());
+      } else if (r.data.success) {
+        setData(r.data);
+        setLastUpdate(new Date());
+      } else {
+        setError(r.data.message || 'Query failed');
+      }
     } catch (err) { setError(err.response?.data?.message || err.message); }
     finally { setLoading(false); }
   }, [panel.id]);

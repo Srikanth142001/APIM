@@ -72,9 +72,15 @@ const PanelEditor = ({ panel, dashboardId, onClose }) => {
       .then(r => {
         if (r.data.success) {
           setConnections(r.data.connections);
-          if (!form.queries[0]?.connectionId && r.data.connections.length > 0) {
-            updateQuery(0, 'connectionId', r.data.connections[0].id);
-          }
+          // Only auto-select if no connection is set yet AND no queries have connections
+          setForm(p => {
+            const hasConn = p.queries.some(q => q.connectionId);
+            if (!hasConn && r.data.connections.length > 0) {
+              const qs = p.queries.map((q, i) => i === 0 ? { ...q, connectionId: r.data.connections[0].id } : q);
+              return { ...p, queries: qs };
+            }
+            return p;
+          });
         }
       })
       .catch(err => console.error('Failed to load connections:', err));
