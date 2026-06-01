@@ -745,7 +745,7 @@ export default function OutageDetectionPanel({ range, startDate, endDate }) {
         <div style={{ flex: 1, height: 1, background: T.border }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: "#f2495c", letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
           <span className="pulse-dot" style={{ background: "#f2495c", width: 6, height: 6 }} />
-          Outage Detection Zone
+          Error Rate Detection Zone
         </span>
         <div style={{ flex: 1, height: 1, background: T.border }} />
       </div>
