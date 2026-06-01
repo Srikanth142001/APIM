@@ -11,6 +11,74 @@ import PieChartViz from './visualizations/PieChartViz';
 import GaugeViz from './visualizations/GaugeViz';
 import ScatterViz from './visualizations/ScatterViz';
 
+/* ── Multi-query tabbed results (different schemas) ─────────────────────────── */
+const MultiQueryResults = ({ queries, viz, options, T }) => {
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  if (!queries || queries.length === 0) return null;
+
+  const active = queries[activeIdx];
+  const qData = active?.data;
+
+  // Convert to the format viz components expect
+  const vizData = qData ? {
+    fields: qData.fields,
+    rows: qData.rows,
+    rowCount: qData.rowCount,
+    success: true,
+  } : null;
+
+  const renderVizForQuery = () => {
+    if (!vizData) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data for this query</div>;
+    switch (viz) {
+      case 'table':   return <TableViz    data={vizData} options={options} />;
+      case 'stat':    return <StatViz     data={vizData} options={options} />;
+      case 'line':    return <LineChartViz data={vizData} options={{ ...options, areaMode: false }} />;
+      case 'area':    return <LineChartViz data={vizData} options={{ ...options, areaMode: true }} />;
+      case 'bar':     return <BarChartViz data={vizData} options={options} />;
+      case 'pie':     return <PieChartViz data={vizData} options={options} />;
+      case 'gauge':   return <GaugeViz    data={vizData} options={options} />;
+      case 'scatter': return <ScatterViz  data={vizData} options={options} />;
+      default:        return <TableViz    data={vizData} options={options} />;
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Query tabs */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, flexShrink: 0, background: T.panel }}>
+        {queries.map((q, i) => (
+          <button key={q.id || i} onClick={() => setActiveIdx(i)}
+            style={{
+              padding: '5px 12px', background: 'transparent', border: 'none',
+              borderBottom: activeIdx === i ? `2px solid ${q.color || T.blue}` : '2px solid transparent',
+              color: activeIdx === i ? (q.color || T.blue) : T.muted,
+              fontSize: 11, fontWeight: activeIdx === i ? 600 : 400,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: q.color || T.blue, display: 'inline-block' }} />
+            {q.label || `Query ${i + 1}`}
+            {q.success && q.data && (
+              <span style={{ fontSize: 9, color: T.dim }}>({q.data.rowCount})</span>
+            )}
+            {!q.success && (
+              <span style={{ fontSize: 9, color: T.red }}>✗</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {/* Active query result */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {active?.success === false ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.red, fontSize: 12 }}>
+            ⚠ {active.error || 'Query failed'}
+          </div>
+        ) : renderVizForQuery()}
+      </div>
+    </div>
+  );
+};
+
 const PBtn = ({ onClick, disabled, title, children, T, danger }) => (
   <button onClick={onClick} disabled={disabled} title={title}
     style={{
@@ -43,11 +111,10 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
       const r = await axios.post(`${API_BASE_URL}/api/custom-db/panels/${panel.id}/execute`);
 
       if (r.data.multiQuery && r.data.queries) {
-        // Multi-query: merge results for visualization
         const successQueries = r.data.queries.filter(q => q.success && q.data);
 
         if (successQueries.length === 0) {
-          setError('All queries failed');
+          setError('All queries failed: ' + r.data.queries.map(q => q.error).filter(Boolean).join('; '));
           setLoading(false);
           return;
         }
@@ -56,24 +123,49 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
           // Single successful query — use directly
           setData({ ...successQueries[0].data, success: true });
         } else {
-          // Multiple queries — merge by combining rows and adding a source column
-          const firstFields = successQueries[0].data.fields;
-          const mergedRows = [];
-          successQueries.forEach(q => {
-            q.data.rows.forEach(row => {
-              mergedRows.push([...row, q.label || q.id]);
+          // Multiple queries with potentially different schemas
+          // Check if schemas match (same field names)
+          const firstFieldNames = successQueries[0].data.fields.map(f => f.name).join(',');
+          const allSameSchema = successQueries.every(q =>
+            q.data.fields.map(f => f.name).join(',') === firstFieldNames
+          );
+
+          if (allSameSchema) {
+            // Same schema — merge all rows into one dataset + add _source column
+            const mergedFields = [
+              ...successQueries[0].data.fields,
+              { name: '_source', dataType: 25 }
+            ];
+            const mergedRows = [];
+            successQueries.forEach(q => {
+              q.data.rows.forEach(row => {
+                mergedRows.push([...row, q.label || q.id]);
+              });
             });
-          });
-          const mergedFields = [...firstFields, { name: '_query', dataType: 25 }];
-          setData({
-            success: true,
-            fields: mergedFields,
-            rows: mergedRows,
-            rowCount: mergedRows.length,
-            executionTime: Math.max(...successQueries.map(q => q.data.executionTime || 0)),
-            _multiQuery: true,
-            _queries: successQueries,
-          });
+            setData({
+              success: true,
+              fields: mergedFields,
+              rows: mergedRows,
+              rowCount: mergedRows.length,
+              executionTime: Math.max(...successQueries.map(q => q.data.executionTime || 0)),
+              _multiQuery: true,
+              _queries: successQueries,
+            });
+          } else {
+            // Different schemas — store all query results separately
+            // For table: show first query + indicator; for charts: overlay series
+            setData({
+              success: true,
+              // Use first query's data as primary
+              fields: successQueries[0].data.fields,
+              rows: successQueries[0].data.rows,
+              rowCount: successQueries[0].data.rowCount,
+              executionTime: Math.max(...successQueries.map(q => q.data.executionTime || 0)),
+              _multiQuery: true,
+              _queries: successQueries,
+              _differentSchemas: true,
+            });
+          }
         }
         setLastUpdate(new Date());
       } else if (r.data.success) {
@@ -121,6 +213,11 @@ const Panel = ({ panel, onEdit, onDelete, onDuplicate, height }) => {
       );
     }
     if (!data) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 12 }}>No data</div>;
+
+    // Multi-query with different schemas — show each result in its own tabbed section
+    if (data._differentSchemas && data._queries) {
+      return <MultiQueryResults queries={data._queries} viz={panel.visualizationType} options={panel.options} T={T} />;
+    }
 
     switch (panel.visualizationType) {
       case 'table':   return <TableViz    data={data} options={panel.options} />;

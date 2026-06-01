@@ -127,7 +127,9 @@
 #    ANONYMIZE_AI            Anonymize API names before sending to AI
 #    AI_DISABLED             Set to "true" to disable AI entirely
 #
-#  ML TUNING (optional):
+#  POSTGRESQL CUSTOM DB (optional):
+#    DB_QUERY_TIMEOUT        Query timeout in ms (default: 30000 = 30s, set higher for slow queries)
+#    DB_MAX_POOL_SIZE        Max connections per pool (default: 5)
 #    ML_SCHEDULE_INTERVAL_MS ML run interval in ms (default: 300000 = 5min)
 #    ML_MIN_CONFIDENCE       Min confidence threshold (default: 0.7)
 #    ML_DEDUP_WINDOW_MS      Alert dedup window in ms (default: 600000 = 10min)

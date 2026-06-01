@@ -19,11 +19,11 @@ class CustomDbService {
     // Store connection configurations (encrypted credentials)
     this.connections = new Map();
     
-    // Query timeout (prevent long-running queries)
-    this.queryTimeout = 30000; // 30 seconds
+    // Query timeout — configurable via DB_QUERY_TIMEOUT env var (default: 30s)
+    this.queryTimeout = parseInt(process.env.DB_QUERY_TIMEOUT) || 30000;
     
-    // Max connections per pool (prevent connection exhaustion)
-    this.maxPoolSize = 5;
+    // Max connections per pool — configurable via DB_MAX_POOL_SIZE env var (default: 5)
+    this.maxPoolSize = parseInt(process.env.DB_MAX_POOL_SIZE) || 5;
     
     // Load saved connections on startup
     this.loadConnections();

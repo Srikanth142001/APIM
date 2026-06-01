@@ -260,6 +260,7 @@ class CustomDbPanelService {
       updatedAt: new Date()
     });
 
+    console.log(`[updatePanel] ${id} queries received: ${JSON.stringify(data.queries?.length)} saved: ${panel.queries?.length}`);
     this.saveData();
     return panel;
   }
