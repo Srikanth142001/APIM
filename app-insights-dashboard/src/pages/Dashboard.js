@@ -502,7 +502,7 @@ const Dashboard = () => {
           endDate={dateMode === "custom" ? customEnd : null}
         />
 
-        {/* ── 🚨 OUTAGE DETECTION ZONE ── */}
+        {/* ── 🚨 ERROR RATE DETECTION ZONE ── */}
         <OutageDetectionPanel
           range={range}
           startDate={dateMode === "custom" ? customStart : null}
