@@ -509,13 +509,7 @@ const Dashboard = () => {
           endDate={dateMode === "custom" ? customEnd : null}
         />
 
-        {/* ── Health Score + SLA + Topology + Quick Actions ── */}
-        <div style={{ display: "grid", gridTemplateColumns: `${features.infrastructure !== false ? "1fr" : ""} ${features.mysql !== false ? "1fr" : ""} 1.4fr 1fr`.trim().replace(/\s+/g, " "), gap: 8 }}>
-          {features.infrastructure !== false && <HealthScore overview={overview} activeConnections={activeConnections} mysqlApiError={mysqlApiError} nodeCount={nodeCount} readyNodes={readyNodes} />}
-          {features.mysql !== false && <SLATracker overview={overview} />}
-          <TopologyMap overview={overview} activeConnections={activeConnections} mysqlApiError={mysqlApiError} nodeCount={nodeCount} readyNodes={readyNodes} />
-          <QuickActions onRefresh={() => fetchData(range)} loading={loading} overview={overview} range={range} />
-        </div>
+        {/* ── Health Score + SLA + Topology + Quick Actions — removed ── */}
 
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ ...chartCard, flex: 1 }}>
