@@ -31,49 +31,60 @@ function getBinSize(req) {
   return "5m";
 }
 
-// ── SAST timezone helpers (Africa/Johannesburg = UTC+2) ──────────────────────
-const SAST_TZ = "Africa/Johannesburg";
+// ── Timezone helpers — configurable via DISPLAY_TIMEZONE env var ──────────────
+// Set DISPLAY_TIMEZONE in .env or Docker env vars to match your local timezone.
+// Examples:
+//   DISPLAY_TIMEZONE=Asia/Kolkata          (IST, UTC+5:30)
+//   DISPLAY_TIMEZONE=Africa/Johannesburg   (SAST, UTC+2)
+//   DISPLAY_TIMEZONE=America/New_York      (EST, UTC-5)
+//   DISPLAY_TIMEZONE=Europe/London         (GMT/BST)
+//   DISPLAY_TIMEZONE=UTC                   (UTC)
+//
+// Default: UTC (safe for all regions — matches Azure App Insights storage)
+const DISPLAY_TZ = process.env.DISPLAY_TIMEZONE || "UTC";
+
+// Keep SAST_TZ as alias for backward compatibility
+const SAST_TZ = DISPLAY_TZ;
 
 /**
- * Format a UTC timestamp as HH:mm in SAST (South Africa Standard Time, UTC+2).
- * Use this for all chart time labels so they match the server/data timezone.
+ * Format a UTC timestamp as HH:mm in the configured display timezone.
  */
 function fmtSASTTime(ts) {
   return new Date(ts).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: SAST_TZ,
+    timeZone: DISPLAY_TZ,
   });
 }
 
 /**
- * Format a UTC timestamp as HH:mm:ss in SAST.
+ * Format a UTC timestamp as HH:mm:ss in the configured display timezone.
  */
 function fmtSASTTimeSec(ts) {
   return new Date(ts).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    timeZone: SAST_TZ,
+    timeZone: DISPLAY_TZ,
   });
 }
 
 /**
- * Format a UTC timestamp as "DD MMM" date in SAST.
+ * Format a UTC timestamp as "DD MMM" date in the configured display timezone.
  */
 function fmtSASTDate(ts) {
   return new Date(ts).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
-    timeZone: SAST_TZ,
+    timeZone: DISPLAY_TZ,
   });
 }
 
 /**
- * Format a UTC timestamp as "DD MMM HH:mm" in SAST (for multi-day ranges).
+ * Format a UTC timestamp as "DD MMM HH:mm" in the configured display timezone.
  */
 function fmtSASTDateTime(ts) {
   return fmtSASTDate(ts) + " " + fmtSASTTime(ts);
 }
 
-module.exports = { buildTimeFilter, getBinSize, fmtSASTTime, fmtSASTTimeSec, fmtSASTDate, fmtSASTDateTime, SAST_TZ };
+module.exports = { buildTimeFilter, getBinSize, fmtSASTTime, fmtSASTTimeSec, fmtSASTDate, fmtSASTDateTime, SAST_TZ, DISPLAY_TZ };
