@@ -31,12 +31,14 @@ router.get("/", async (req, res) => {
     const kqlQuery = `
 let selectedData = requests
   | where timestamp between (datetime("${selectedStart.toISOString()}") .. datetime("${selectedEnd.toISOString()}"))
-  | summarize count = count() by timestamp=bin(timestamp, ${bin})
+  | where client_Type != "Browser"
+  | summarize count = sum(itemCount) by timestamp=bin(timestamp, ${bin})
   | extend period = "Selected";
 
 let compareData = requests
   | where timestamp between (datetime("${compareStart.toISOString()}") .. datetime("${compareEnd.toISOString()}"))
-  | summarize count = count() by timestamp=bin(timestamp, ${bin})
+  | where client_Type != "Browser"
+  | summarize count = sum(itemCount) by timestamp=bin(timestamp, ${bin})
   | extend period = "Previous";
 
 union selectedData, compareData

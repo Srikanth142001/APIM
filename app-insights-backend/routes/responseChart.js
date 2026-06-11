@@ -10,6 +10,7 @@ router.get("/", async (req, res) => {
     const rows = await queryAppInsights(`
       requests
       | where ${timeFilter}
+      | where client_Type != "Browser"
       | summarize value = avg(duration) by bin(timestamp, ${bin})
       | order by timestamp asc
     `);

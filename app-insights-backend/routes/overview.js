@@ -7,9 +7,9 @@ router.get("/", async (req, res) => {
   try {
     const timeFilter = buildTimeFilter(req);
     const rows = await queryAppInsights(`
-  let currentRange = requests | where ${timeFilter};
-  let failures = currentRange | where success == false | summarize failureCount = count() | extend key = 1;
-  let totalCurrent = currentRange | summarize totalCount = count() | extend key = 1;
+  let currentRange = requests | where ${timeFilter} | where client_Type != "Browser";
+  let failures = currentRange | where success == false | summarize failureCount = sum(itemCount) | extend key = 1;
+  let totalCurrent = currentRange | summarize totalCount = sum(itemCount) | extend key = 1;
   let avgTime = currentRange | summarize avgDuration = avg(duration) | extend key = 1;
   failures
   | join kind=inner (totalCurrent) on key

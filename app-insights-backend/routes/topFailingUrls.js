@@ -16,7 +16,7 @@ requests
 | where ${timeFilter} and success == false
 | where client_Type != "Browser"
 | summarize
-    failureCount = count(),
+    failureCount = sum(itemCount),
     resultCodes = make_set(resultCode, 5),
     sample_url = any(url),
     sample_operationId = any(operation_Id),

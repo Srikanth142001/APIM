@@ -46,9 +46,10 @@ router.get("/", async (req, res) => {
     const currentQuery = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | summarize
-    total_requests = count(),
-    failure_count  = countif(success == false),
+    total_requests = sum(itemCount),
+    failure_count  = sumif(itemCount, success == false),
     avg_rt         = avg(duration),
     result_codes   = make_set(resultCode, 10),
     last_seen      = max(timestamp),
@@ -63,9 +64,10 @@ requests
     const day1Query = `
 requests
 | where ${compareTimeFilter}
+| where client_Type != "Browser"
 | summarize
-    day1_total    = count(),
-    day1_failures = countif(success == false),
+    day1_total    = sum(itemCount),
+    day1_failures = sumif(itemCount, success == false),
     day1_avg_rt   = avg(duration)
   by operation_Name
 | where day1_total > 0
@@ -172,9 +174,10 @@ router.get("/detail", async (req, res) => {
     const codeQuery = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | where operation_Name == "${safeApi}"
 | where success == false
-| summarize count_ = count() by resultCode
+| summarize count_ = sum(itemCount) by resultCode
 | order by count_ desc
 `;
 
@@ -182,10 +185,11 @@ requests
     const trendQuery = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | where operation_Name == "${safeApi}"
 | summarize
-    total   = count(),
-    errors  = countif(success == false),
+    total   = sum(itemCount),
+    errors  = sumif(itemCount, success == false),
     avg_rt  = avg(duration)
   by bin(timestamp, 1h)
 | extend error_rate = round(errors * 100.0 / total, 2)
@@ -196,9 +200,10 @@ requests
     const day1CodeQuery = `
 requests
 | where ${day1TimeFilter}
+| where client_Type != "Browser"
 | where operation_Name == "${safeApi}"
 | where success == false
-| summarize count_ = count() by resultCode
+| summarize count_ = sum(itemCount) by resultCode
 | order by count_ desc
 `;
 
@@ -208,8 +213,8 @@ requests
 | where ${day1TimeFilter}
 | where operation_Name == "${safeApi}"
 | summarize
-    total    = count(),
-    failures = countif(success == false),
+    total    = sum(itemCount),
+    failures = sumif(itemCount, success == false),
     avg_rt   = avg(duration)
 | extend error_rate = round(failures * 100.0 / total, 2)
 `;
@@ -274,16 +279,16 @@ requests
 | where ${timeFilter}
 | where operation_Name == "${safeApi}"
 | summarize
-    total_all        = count(),
-    failures_all     = countif(success == false),
+    total_all        = sum(itemCount),
+    failures_all     = sumif(itemCount, success == false),
     avg_rt_all       = avg(duration),
     // Breakdown by client type
     total_browser    = countif(client_Type == "Browser"),
     total_nonbrowser = countif(client_Type != "Browser"),
     total_null       = countif(isnull(client_Type) or isempty(client_Type)),
     // Breakdown by success
-    success_count    = countif(success == true),
-    failure_count    = countif(success == false),
+    success_count    = sumif(itemCount, success == true),
+    failure_count    = sumif(itemCount, success == false),
     // RT percentiles
     p50_rt           = percentile(duration, 50),
     p95_rt           = percentile(duration, 95),

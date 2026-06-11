@@ -295,10 +295,12 @@ router.post('/dashboards/:dashboardId/panels', requireAdmin, async (req, res) =>
     const { dashboardId } = req.params;
     const panelData = req.body;
     
-    if (!panelData.title || !panelData.connectionId || !panelData.query) {
+    // For multi-query panels, connectionId/query may be derived from queries[]
+    const hasQuery = panelData.query || (panelData.queries && panelData.queries.length > 0 && panelData.queries[0]?.connectionId);
+    if (!panelData.title || !hasQuery) {
       return res.status(400).json({
         success: false,
-        message: 'Title, connectionId, and query are required'
+        message: 'Title and at least one query with a connection are required'
       });
     }
 
@@ -399,8 +401,15 @@ router.post('/panels/:id/execute', async (req, res) => {
 
     // Multi-query mode: panel.queries = [{id, label, connectionId, query, color}]
     if (panel.queries && panel.queries.length > 0) {
+      // Only execute queries that have both a connectionId and a non-empty query string
+      const executableQueries = panel.queries.filter(q => q.connectionId && q.query && q.query.trim());
+
+      if (executableQueries.length === 0) {
+        return res.status(400).json({ success: false, message: 'No valid queries to execute (missing connectionId or query text)' });
+      }
+
       const results = await Promise.allSettled(
-        panel.queries.map(async (q) => {
+        executableQueries.map(async (q) => {
           try {
             const result = await customDbService.executeQuery(q.connectionId, q.query, []);
             return { id: q.id, label: q.label, color: q.color, success: true, data: result };

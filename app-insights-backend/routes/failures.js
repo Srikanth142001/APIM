@@ -9,7 +9,8 @@ router.get("/", async (req, res) => {
     const rows = await queryAppInsights(`
       requests
       | where ${timeFilter} and success == false
-      | summarize failureCount = count(), status = tostring(take_any(resultCode)) by name
+      | where client_Type != "Browser"
+      | summarize failureCount = sum(itemCount), status = tostring(take_any(resultCode)) by name
       | top 10 by failureCount desc
     `);
 

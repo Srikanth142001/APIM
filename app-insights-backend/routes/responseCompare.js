@@ -29,11 +29,13 @@ router.get("/", async (req, res) => {
     const kqlQuery = `
 let selectedData = requests
   | where timestamp between (datetime("${selectedStart.toISOString()}") .. datetime("${selectedEnd.toISOString()}"))
+  | where client_Type != "Browser"
   | summarize value = avg(duration) by timestamp=bin(timestamp, ${bin})
   | extend period = "Today";
 
 let compareData = requests
   | where timestamp between (datetime("${compareStart.toISOString()}") .. datetime("${compareEnd.toISOString()}"))
+  | where client_Type != "Browser"
   | summarize value = avg(duration) by timestamp=bin(timestamp, ${bin})
   | extend period = "Yesterday";
 

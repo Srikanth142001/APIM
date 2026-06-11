@@ -25,9 +25,10 @@ router.get("/", async (req, res) => {
     const currentQuery = `
       requests
       | where timestamp between (datetime("${currentStart.toISOString()}") .. datetime("${currentEnd.toISOString()}"))
+      | where client_Type != "Browser"
       | summarize
-          totalCount = count(),
-          currentFailures = countif(success == false),
+          totalCount = sum(itemCount),
+          currentFailures = sumif(itemCount, success == false),
           sample_operationId = any(operation_Id),
           sample_operationName = any(operation_Name),
           sample_url = any(url)
@@ -38,7 +39,8 @@ router.get("/", async (req, res) => {
     const previousQuery = `
       requests
       | where timestamp between (datetime("${previousStart.toISOString()}") .. datetime("${previousEnd.toISOString()}"))
-      | summarize pastFailures = countif(success == false) by name
+      | where client_Type != "Browser"
+      | summarize pastFailures = sumif(itemCount, success == false) by name
     `;
 
     const [currentData, previousData] = await Promise.all([

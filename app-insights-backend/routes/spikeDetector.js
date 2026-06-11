@@ -16,17 +16,19 @@ router.get("/", async (req, res) => {
     const query = `
 let current = requests
 | where timestamp between (datetime("${t0.toISOString()}") .. datetime("${now.toISOString()}"))
+| where client_Type != "Browser"
 | summarize
-    curr_total = count(),
-    curr_errors = countif(success == false),
+    curr_total = sum(itemCount),
+    curr_errors = sumif(itemCount, success == false),
     curr_avg_rt = avg(duration)
 | extend period = "current";
 
 let previous = requests
 | where timestamp between (datetime("${t1.toISOString()}") .. datetime("${t0.toISOString()}"))
+| where client_Type != "Browser"
 | summarize
-    prev_total = count(),
-    prev_errors = countif(success == false),
+    prev_total = sum(itemCount),
+    prev_errors = sumif(itemCount, success == false),
     prev_avg_rt = avg(duration)
 | extend period = "previous";
 

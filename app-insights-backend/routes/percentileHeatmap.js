@@ -19,8 +19,8 @@ requests
     p50 = percentile(duration, 50),
     p95 = percentile(duration, 95),
     p99 = percentile(duration, 99),
-    totalCount = count(),
-    errorCount = countif(success == false)
+    totalCount = sum(itemCount),
+    errorCount = sumif(itemCount, success == false)
   by operation_Name
 | where totalCount > 20
 | extend errorRate = round((errorCount * 100.0 / totalCount), 2)

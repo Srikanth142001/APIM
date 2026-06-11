@@ -38,8 +38,8 @@ requests
 | where timestamp > ago(80d)
 | where client_Type != "Browser"
 | summarize
-    daily_total  = count(),
-    daily_errors = countif(success == false),
+    daily_total  = sum(itemCount),
+    daily_errors = sumif(itemCount, success == false),
     daily_avg_rt = avg(duration)
   by operation_Name, bin(timestamp, 1d)
 | where daily_total > 5
@@ -73,8 +73,8 @@ requests
 | where timestamp > ago(30m)
 | where client_Type != "Browser"
 | summarize
-    curr_total   = count(),
-    curr_errors  = countif(success == false),
+    curr_total   = sum(itemCount),
+    curr_errors  = sumif(itemCount, success == false),
     curr_avg_rt  = avg(duration),
     curr_p50_rt  = percentile(duration, 50),
     curr_p95_rt  = percentile(duration, 95)
@@ -87,8 +87,8 @@ requests
 | where timestamp > ago(1h)
 | where client_Type != "Browser"
 | summarize
-    curr_total   = count(),
-    curr_errors  = countif(success == false),
+    curr_total   = sum(itemCount),
+    curr_errors  = sumif(itemCount, success == false),
     curr_avg_rt  = avg(duration),
     curr_p50_rt  = percentile(duration, 50),
     curr_p95_rt  = percentile(duration, 95)
@@ -101,8 +101,8 @@ requests
 | where timestamp > ago(24h)
 | where client_Type != "Browser"
 | summarize
-    h_total    = count(),
-    h_errors   = countif(success == false),
+    h_total    = sum(itemCount),
+    h_errors   = sumif(itemCount, success == false),
     h_avg_rt   = avg(duration)
   by operation_Name, bin(timestamp, 1h)
 | extend h_err_rate = iff(h_total > 0, h_errors * 100.0 / h_total, 0.0)
@@ -115,8 +115,8 @@ requests
 | where timestamp > ago(30m)
 | where client_Type != "Browser"
 | summarize
-    c_total    = count(),
-    c_errors   = countif(success == false),
+    c_total    = sum(itemCount),
+    c_errors   = sumif(itemCount, success == false),
     c_avg_rt   = avg(duration)
 | extend c_err_rate = iff(c_total > 0, c_errors * 100.0 / c_total, 0.0)
 `;
@@ -127,8 +127,8 @@ requests
 | where timestamp > ago(7d) and timestamp < ago(30m)
 | where client_Type != "Browser"
 | summarize
-    b_total    = count(),
-    b_errors   = countif(success == false),
+    b_total    = sum(itemCount),
+    b_errors   = sumif(itemCount, success == false),
     b_avg_rt   = avg(duration)
   by bin(timestamp, 30m)
 | summarize
@@ -146,7 +146,7 @@ const RESULT_CODE_QUERY = `
 requests
 | where timestamp > ago(30m)
 | where client_Type != "Browser"
-| summarize code_count = count() by operation_Name, resultCode
+| summarize code_count = sum(itemCount) by operation_Name, resultCode
 | order by operation_Name asc, code_count desc
 `;
 
@@ -155,7 +155,7 @@ requests
 | where timestamp > ago(7d) and timestamp < ago(30m)
 | where client_Type != "Browser"
 | summarize
-    b_count = count()
+    b_count = sum(itemCount)
   by operation_Name, resultCode
 | summarize
     b_total_per_code = sum(b_count),
@@ -174,8 +174,8 @@ let today = requests
 | where timestamp between (window_start .. now)
 | where client_Type != "Browser"
 | summarize
-    t_total  = count(),
-    t_errors = countif(success == false),
+    t_total  = sum(itemCount),
+    t_errors = sumif(itemCount, success == false),
     t_avg_rt = avg(duration)
   by operation_Name
 | extend t_err_rate = iff(t_total > 0, t_errors * 100.0 / t_total, 0.0);
@@ -184,8 +184,8 @@ let yesterday = requests
 | where timestamp between (yest_start .. yest_end)
 | where client_Type != "Browser"
 | summarize
-    y_total  = count(),
-    y_errors = countif(success == false),
+    y_total  = sum(itemCount),
+    y_errors = sumif(itemCount, success == false),
     y_avg_rt = avg(duration)
   by operation_Name
 | extend y_err_rate = iff(y_total > 0, y_errors * 100.0 / y_total, 0.0);
@@ -918,8 +918,8 @@ requests
 | where timestamp > ago(30m)
 | where client_Type != "Browser"
 | summarize
-    curr_total  = count(),
-    curr_errors = countif(success == false),
+    curr_total  = sum(itemCount),
+    curr_errors = sumif(itemCount, success == false),
     curr_avg_rt = avg(duration)
   by operation_Name
 | where curr_total > 0
@@ -960,8 +960,8 @@ requests
 | where operation_Name == "${api.replace(/"/g, "")}"
 | where client_Type != "Browser"
 | summarize
-    total      = count(),
-    errors     = countif(success == false),
+    total      = sum(itemCount),
+    errors     = sumif(itemCount, success == false),
     avg_rt     = avg(duration),
     p95_rt     = percentile(duration, 95)
   by bin(timestamp, 1d)
@@ -993,7 +993,7 @@ router.get("/critical-chart", async (req, res) => {
 requests
 | where timestamp > ago(80d)
 | where operation_Name == "${safeApi}" and client_Type != "Browser"
-| summarize total=count(), errors=countif(success==false), avg_rt=avg(duration), p50_rt=percentile(duration,50), p95_rt=percentile(duration,95)
+| summarize total=sum(itemCount), errors=sumif(itemCount,success==false), avg_rt=avg(duration), p50_rt=percentile(duration,50), p95_rt=percentile(duration,95)
   by bin(timestamp,1d)
 | extend error_rate=iff(total>0,errors*100.0/total,0.0)
 | order by timestamp asc`),
@@ -1002,7 +1002,7 @@ requests
 requests
 | where timestamp > ago(7d)
 | where operation_Name == "${safeApi}" and client_Type != "Browser"
-| summarize total=count(), errors=countif(success==false), avg_rt=avg(duration), p95_rt=percentile(duration,95)
+| summarize total=sum(itemCount), errors=sumif(itemCount,success==false), avg_rt=avg(duration), p95_rt=percentile(duration,95)
   by bin(timestamp,1d)
 | extend error_rate=iff(total>0,errors*100.0/total,0.0)
 | order by timestamp asc`),
@@ -1011,7 +1011,7 @@ requests
 requests
 | where timestamp > ago(24h)
 | where operation_Name == "${safeApi}" and client_Type != "Browser"
-| summarize total=count(), errors=countif(success==false), avg_rt=avg(duration), p95_rt=percentile(duration,95)
+| summarize total=sum(itemCount), errors=sumif(itemCount,success==false), avg_rt=avg(duration), p95_rt=percentile(duration,95)
   by bin(timestamp,1h)
 | extend error_rate=iff(total>0,errors*100.0/total,0.0)
 | order by timestamp asc`),
@@ -1020,7 +1020,7 @@ requests
 requests
 | where timestamp > ago(80d)
 | where operation_Name == "${safeApi}" and client_Type != "Browser"
-| summarize daily_err=avg(iff(count()>0,countif(success==false)*100.0/count(),0.0)),
+| summarize daily_err=avg(iff(sum(itemCount)>0,sumif(itemCount,success==false)*100.0/sum(itemCount),0.0)),
             daily_rt=avg(avg(duration)),
             daily_p95=avg(percentile(duration,95))
   by bin(timestamp,1d)
@@ -1086,8 +1086,8 @@ requests
 | where timestamp > ago(7d)
 | where client_Type != "Browser"
 | summarize
-    daily_total  = count(),
-    daily_errors = countif(success == false),
+    daily_total  = sum(itemCount),
+    daily_errors = sumif(itemCount, success == false),
     daily_avg_rt = avg(duration)
   by operation_Name, bin(timestamp, 1d)
 | where daily_total > 5

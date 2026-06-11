@@ -17,13 +17,13 @@ router.get("/", async (req, res) => {
 let current = requests
 | where timestamp between (datetime("${currStart.toISOString()}") .. datetime("${now.toISOString()}"))
 | where client_Type != "Browser"
-| summarize curr_count = count(), curr_errors = countif(success == false) by operation_Name
+| summarize curr_count = sum(itemCount), curr_errors = sumif(itemCount, success == false) by operation_Name
 | extend curr_errorRate = iff(curr_count > 0, round(curr_errors * 100.0 / curr_count, 2), 0.0);
 
 let previous = requests
 | where timestamp between (datetime("${prevStart.toISOString()}") .. datetime("${currStart.toISOString()}"))
 | where client_Type != "Browser"
-| summarize prev_count = count() by operation_Name;
+| summarize prev_count = sum(itemCount) by operation_Name;
 
 previous
 | join kind=leftouter current on operation_Name

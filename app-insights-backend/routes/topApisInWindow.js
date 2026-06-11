@@ -19,9 +19,10 @@ router.get("/", async (req, res) => {
     const query = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | summarize
-    total      = count(),
-    failures   = countif(success == false),
+    total      = sum(itemCount),
+    failures   = sumif(itemCount, success == false),
     avg_rt     = avg(duration),
     p95_rt     = percentile(duration, 95),
     result_codes = make_set(resultCode, 5)

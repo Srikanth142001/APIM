@@ -9,10 +9,11 @@ router.get("/", async (req, res) => {
     const table = await queryAppInsights(`
       requests
       | where ${timeFilter}
+      | where client_Type != "Browser"
       | summarize
-          totalCount = count(),
+          totalCount = sum(itemCount),
           avgDuration = avg(duration),
-          errorCount = countif(success == false)
+          errorCount = sumif(itemCount, success == false)
         by name
       | top 5 by totalCount desc
     `);

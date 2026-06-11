@@ -51,8 +51,8 @@ requests
 | where client_Type != "Browser"
 | summarize
     avg_rt   = avg(duration),
-    total    = count(),
-    slow     = countif(duration > 2000)
+    total    = sum(itemCount),
+    slow     = sumif(itemCount, duration > 2000)
   by bin(timestamp, ${bucket})
 | order by timestamp asc
 `;
@@ -95,10 +95,10 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | summarize
-    total    = count(),
+    total    = sum(itemCount),
     avg_rt   = avg(duration),
-    slow     = countif(duration > 2000),
-    errors   = countif(success == false)
+    slow     = sumif(itemCount, duration > 2000),
+    errors   = sumif(itemCount, success == false)
   by operation_Name
 | extend slow_pct = iff(total > 0, slow * 100.0 / total, 0.0)
 | extend error_rate = iff(total > 0, errors * 100.0 / total, 0.0)
@@ -152,8 +152,8 @@ requests
 | where operation_Name == "${safeOp}"
 | summarize
     avg_rt = avg(duration),
-    total  = count(),
-    slow   = countif(duration > 2000)
+    total  = sum(itemCount),
+    slow   = sumif(itemCount, duration > 2000)
   by bin(timestamp, 1h)
 | order by timestamp asc
 `),
@@ -176,7 +176,7 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | where operation_Name == "${safeOp}"
-| summarize count = count() by resultCode
+| summarize count = sum(itemCount) by resultCode
 | order by count desc
 | take 20
 `),
@@ -187,9 +187,9 @@ requests
 | where client_Type != "Browser"
 | where operation_Name == "${safeOp}"
 | summarize
-    total      = count(),
-    success    = countif(success == true),
-    failed     = countif(success == false),
+    total      = sum(itemCount),
+    success    = sumif(itemCount, success == true),
+    failed     = sumif(itemCount, success == false),
     avg_rt     = avg(duration),
     min_rt     = min(duration),
     max_rt     = max(duration),

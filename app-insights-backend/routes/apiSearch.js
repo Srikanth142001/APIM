@@ -34,11 +34,12 @@ router.get("/", async (req, res) => {
     const metricsQuery = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | where operation_Name contains "${safe}"
 | summarize
-    total      = count(),
-    success    = countif(success == true),
-    failed     = countif(success == false),
+    total      = sum(itemCount),
+    success    = sumif(itemCount, success == true),
+    failed     = sumif(itemCount, success == false),
     avg_rt     = round(avg(duration), 0),
     min_rt     = round(min(duration), 0),
     max_rt     = round(max(duration), 0),
@@ -53,8 +54,9 @@ requests
     const codesQuery = `
 requests
 | where ${timeFilter}
+| where client_Type != "Browser"
 | where operation_Name contains "${safe}"
-| summarize count_ = count() by operation_Name, resultCode
+| summarize count_ = sum(itemCount) by operation_Name, resultCode
 | order by operation_Name asc, count_ desc
 `;
 

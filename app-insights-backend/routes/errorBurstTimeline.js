@@ -14,9 +14,10 @@ router.get("/", async (req, res) => {
     const query = `
 requests
 | where timestamp > ago(${range})
+| where client_Type != "Browser"
 | summarize
-    total = count(),
-    errors = countif(success == false),
+    total = sum(itemCount),
+    errors = sumif(itemCount, success == false),
     avgRt = avg(duration)
   by bin(timestamp, 1m)
 | extend errorRate = iff(total > 0, (errors * 100.0 / total), 0.0)

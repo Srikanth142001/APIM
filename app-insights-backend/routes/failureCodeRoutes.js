@@ -8,7 +8,8 @@ router.get("/", async (req, res) => {
   const query = `
 requests
 | where timestamp > ago(${range}) and success == false
-| summarize count_ = count() by resultCode
+| where client_Type != "Browser"
+| summarize count_ = sum(itemCount) by resultCode
 | order by count_ desc
 `;
 

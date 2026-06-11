@@ -30,8 +30,8 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | summarize
-    failed  = countif(success == false),
-    total   = count(),
+    failed  = sumif(itemCount, success == false),
+    total   = sum(itemCount),
     avg_rt  = avg(duration)
   by bin(timestamp, ${bucket})
 | extend error_rate = iff(total > 0, failed * 100.0 / total, 0.0)
@@ -74,8 +74,8 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | summarize
-    failed  = countif(success == false),
-    total   = count(),
+    failed  = sumif(itemCount, success == false),
+    total   = sum(itemCount),
     avg_rt  = avg(duration),
     p95_rt  = percentile(duration, 95),
     codes   = make_set(resultCode, 5)
@@ -129,7 +129,7 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | where operation_Name == "${safeOp}"
-| summarize count_ = count() by resultCode
+| summarize count_ = sum(itemCount) by resultCode
 | order by count_ desc
 | take 10
 `),
@@ -159,8 +159,8 @@ requests
 | where client_Type != "Browser"
 | where operation_Name == "${safeOp}"
 | summarize
-    failed = countif(success == false),
-    total  = count(),
+    failed = sumif(itemCount, success == false),
+    total  = sum(itemCount),
     avg_rt = avg(duration)
   by bin(timestamp, 1h)
 | extend error_rate = iff(total > 0, failed * 100.0 / total, 0.0)
@@ -228,7 +228,7 @@ requests
 | where ${timeFilter}
 | where client_Type != "Browser"
 | where success == false
-| summarize count_ = count() by resultCode
+| summarize count_ = sum(itemCount) by resultCode
 | order by count_ desc
 | take 5
 `),
