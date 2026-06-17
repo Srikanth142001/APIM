@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  FaTachometerAlt, FaServer, FaDatabase, FaExclamationTriangle,
-  FaClipboardList, FaFileAlt, FaChevronLeft, FaChevronRight,
-  FaSignOutAlt, FaBell, FaNetworkWired, FaChartBar, FaTimesCircle,
-  FaSun, FaMoon, FaChartLine,
+  FaTachometerAlt, FaServer, FaDatabase,
+  FaChevronLeft, FaChevronRight,
+  FaSignOutAlt, FaChartBar, FaTimesCircle,
+  FaSun, FaMoon, FaChartLine, FaNetworkWired, FaClock,
 } from "react-icons/fa";
 import { useTheme } from "../../context/ThemeContext";
 import { useFeatures } from "../../context/FeaturesContext";
@@ -18,16 +18,12 @@ const ALL_NAV = [
   { label: "MySQL",           icon: FaDatabase,            path: "/dashboard?tab=mysql",     section: "monitoring", feature: "mysql" },
   { label: "Custom DB Query", icon: FaDatabase,            path: "/custom-db",               section: "monitoring", feature: null },
   { label: "KQL Dashboard",   icon: FaChartLine,           path: "/kql-dashboard",           section: "monitoring", feature: null },
-  { label: "Alerts",          icon: FaBell,                path: "/dashboard?tab=alerts",    section: "monitoring", feature: null },
   { label: "ML Alerts",       icon: FaNetworkWired,        path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
-  { label: "Outages",         icon: FaExclamationTriangle, path: "/outages",                 section: "incidents",  feature: null },
-  { label: "New Outage",      icon: FaClipboardList,       path: "/OutageForm",              section: "incidents",  feature: null },
-  { label: "Incident Report", icon: FaFileAlt,             path: "/view-IncidentFormPage",   section: "incidents",  feature: null },
+  { label: "Cron Scheduler", icon: FaClock,               path: "/cron-scheduler",          section: "monitoring", feature: null },
 ];
 
 const SECTIONS = [
   { key: "monitoring", label: "MONITORING" },
-  { key: "incidents",  label: "INCIDENTS" },
 ];
 
 export default function Sidebar({ alertCount = 0 }) {

@@ -42,6 +42,8 @@ const apiSearch          = require("./routes/apiSearch");
 const customDbRoutes     = require("./routes/customDbRoutes");
 // ── KQL Dashboard ────────────────────────────────────────────────────────────
 const kqlRoutes          = require("./routes/kqlRoutes");
+// ── Cron Job Scheduler ───────────────────────────────────────────────────────
+const cronRoutes         = require("./routes/cronRoutes");
 
 const app = express();
 app.use(cors());
@@ -99,6 +101,8 @@ app.use("/api/api-search",          apiSearch);
 app.use("/api/custom-db",           customDbRoutes);
 // ── KQL Dashboard ────────────────────────────────────────────────────────────
 app.use("/api/kql",                 kqlRoutes);
+// ── Cron Job Scheduler ───────────────────────────────────────────────────────
+app.use("/api/cron",                cronRoutes);
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {

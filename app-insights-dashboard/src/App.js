@@ -9,6 +9,7 @@ import IncidentFormPage from "./pages/IncidentFormPage";
 import FailuresPanel from "./pages/FailuresPanel";
 import PerformancePanel from "./pages/PerfPanel";
 import CustomDbQuery from "./pages/CustomDbQuery";
+import CronScheduler from "./pages/CronScheduler";
 import KqlDashboard from "./pages/KqlDashboard";
 import Sidebar from "./components/ui/Sidebar";
 import { isTokenValid } from "./config/axiosSetup";
@@ -71,6 +72,9 @@ function AppRoutes() {
         } />
         <Route path="/kql-dashboard" element={
           <ProtectedRoute><AppLayout><KqlDashboard /></AppLayout></ProtectedRoute>
+        } />
+        <Route path="/cron-scheduler" element={
+          <ProtectedRoute><AppLayout><CronScheduler /></AppLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>
