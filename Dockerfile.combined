@@ -35,8 +35,8 @@ FROM node:18-alpine
 LABEL maintainer="NexGen APIM Team"
 LABEL description="NexGen APIM — Combined single container (frontend + backend)"
 
-# Install nginx and supervisord
-RUN apk add --no-cache nginx supervisor gettext
+# Install nginx, supervisord, and postgresql client tools
+RUN apk add --no-cache nginx supervisor gettext postgresql-client
 
 # ── Copy backend from backend image ──────────────────────────────────────────
 WORKDIR /app/backend
