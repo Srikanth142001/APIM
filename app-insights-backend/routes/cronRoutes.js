@@ -1,12 +1,16 @@
 /**
  * Cron Job Scheduler Routes
- * POST   /api/cron/jobs          — create a new job (admin only)
- * GET    /api/cron/jobs          — list all jobs
- * PUT    /api/cron/jobs/:id      — update a job (admin only)
- * DELETE /api/cron/jobs/:id      — delete a job (admin only)
+ * GET    /api/cron/jobs            — list all jobs (no scriptContent)
+ * GET    /api/cron/jobs/:id        — get single job WITH scriptContent
+ * POST   /api/cron/jobs            — create a new job (admin only)
+ * PUT    /api/cron/jobs/:id        — update a job (admin only)
+ * DELETE /api/cron/jobs/:id        — delete a job (admin only)
  * POST   /api/cron/jobs/:id/toggle — enable / disable
  * POST   /api/cron/jobs/:id/run    — run immediately
  * GET    /api/cron/jobs/:id/logs   — last N execution logs
+ *
+ * IMPORTANT: /jobs must be registered BEFORE /jobs/:id so Express does not
+ * treat the literal string "jobs" as an :id parameter.
  */
 const express = require('express');
 const router  = express.Router();
@@ -18,18 +22,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// ── Get single job (with scriptContent) ──────────────────────────────────────
-router.get('/jobs/:id', (req, res) => {
-  try {
-    const job = cronService.getJobWithScript(req.params.id);
-    if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
-    res.json({ success: true, job });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// ── List all jobs ─────────────────────────────────────────────────────────────
+// ── List all jobs (no scriptContent — keeps payload small) ───────────────────
 router.get('/jobs', (req, res) => {
   try {
     res.json({ success: true, jobs: cronService.listJobs() });
@@ -48,6 +41,17 @@ router.post('/jobs', requireAdmin, (req, res) => {
     res.json({ success: true, job });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// ── Get single job WITH scriptContent (must come after POST /jobs) ────────────
+router.get('/jobs/:id', (req, res) => {
+  try {
+    const job = cronService.getJobWithScript(req.params.id);
+    if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
+    res.json({ success: true, job });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

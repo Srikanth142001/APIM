@@ -7,10 +7,12 @@ const path    = require('path');
 const { exec } = require('child_process');
 const cron    = require('node-cron');
 
-const STORAGE_DIR  = '/app/shared';
+const STORAGE_DIR  = process.env.CRON_STORAGE_DIR || '/app/shared';
 const JOBS_FILE    = path.join(STORAGE_DIR, 'cron-jobs.json');
-const SCRIPTS_DIR  = path.join(STORAGE_DIR, 'cron-scripts');
 const LOGS_DIR     = path.join(STORAGE_DIR, 'cron-logs');
+// Scripts are written to /tmp at execution time — works on ephemeral filesystems
+// (Azure Container Apps, etc.) since scriptContent is stored in the job JSON
+const SCRIPTS_DIR  = '/tmp/cron-scripts';
 
 class CronService {
   constructor() {

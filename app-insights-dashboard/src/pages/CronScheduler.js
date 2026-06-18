@@ -57,7 +57,14 @@ export default function CronScheduler() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    load();
+    // Only poll when no modal is open — prevents UI flashing while interacting
+    if (!showForm && !logsModal) {
+      const t = setInterval(load, 15000);
+      return () => clearInterval(t);
+    }
+  }, [load, showForm, logsModal]);
 
   const openCreate = () => { setEditJob(null); setForm(EMPTY_FORM); setError(null); setShowForm(true); };
   const openEdit = async (job) => {
