@@ -60,13 +60,28 @@ export default function CronScheduler() {
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
 
   const openCreate = () => { setEditJob(null); setForm(EMPTY_FORM); setError(null); setShowForm(true); };
-  const openEdit   = async (job) => {
-    // fetch full job (with scriptContent)
+  const openEdit = async (job) => {
     try {
-      const r = await axios.get(`${API_BASE_URL}/api/cron/jobs`);
-      const full = (r.data.jobs || []).find(j => j.id === job.id) || job;
-      setEditJob(full); setForm({ ...EMPTY_FORM, ...full }); setError(null); setShowForm(true);
-    } catch { setEditJob(job); setForm({ ...EMPTY_FORM, ...job }); setShowForm(true); }
+      const r = await axios.get(`${API_BASE_URL}/api/cron/jobs/${job.id}`);
+      const full = r.data.job || job;
+      setEditJob(full);
+      setForm({
+        name: full.name || '',
+        description: full.description || '',
+        schedule: full.schedule || '0 * * * *',
+        scriptContent: full.scriptContent || '',
+        scriptName: full.scriptName || 'script',
+        scriptType: full.scriptType || 'shell',
+        enabled: full.enabled !== false,
+      });
+      setError(null);
+      setShowForm(true);
+    } catch {
+      // fallback — at least show what we have
+      setEditJob(job);
+      setForm({ ...EMPTY_FORM, ...job, scriptContent: job.scriptContent || '' });
+      setShowForm(true);
+    }
   };
 
   const handleFileUpload = (e) => {

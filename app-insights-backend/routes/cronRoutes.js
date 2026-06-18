@@ -18,6 +18,17 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// ── Get single job (with scriptContent) ──────────────────────────────────────
+router.get('/jobs/:id', (req, res) => {
+  try {
+    const job = cronService.getJobWithScript(req.params.id);
+    if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
+    res.json({ success: true, job });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── List all jobs ─────────────────────────────────────────────────────────────
 router.get('/jobs', (req, res) => {
   try {
