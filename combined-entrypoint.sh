@@ -61,4 +61,4 @@ echo "  Grafana:          http://localhost:80/grafana  (admin / admin)"
 echo "==========================================="
 
 # ── Start all processes via supervisord ──────────────────────────────────────
-exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+exec supervisord -c /etc/supervisord.conf
