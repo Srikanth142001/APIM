@@ -112,6 +112,16 @@ org_role = Viewer
 [auth]
 disable_login_form = false
 
+[feature_toggles]
+# Hide Grafana top nav when embedded
+topnav = false
+
+[unified_alerting]
+enabled = false
+
+[alerting]
+enabled = false
+
 [log]
 mode = console
 level = warn
