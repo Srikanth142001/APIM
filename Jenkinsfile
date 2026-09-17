@@ -6,10 +6,17 @@ pipeline {
     }
     
     environment {
-        IMAGE_NAME = "reddy321678/apim"
-        TAG = "latest"
-        HTTP_PROXY  = "http://192.168.1.70:3128"
-        HTTPS_PROXY = "http://192.168.1.70:3128"
+        // Docker Hub (existing)
+        DOCKERHUB_IMAGE = "reddy321678/apim"
+        
+        // Azure Container Registry — set ACR_LOGIN_SERVER in Jenkins env or here
+        // e.g. yourregistry.azurecr.io
+        ACR_LOGIN_SERVER = "${env.ACR_LOGIN_SERVER ?: 'yourregistry.azurecr.io'}"
+        ACR_IMAGE        = "${ACR_LOGIN_SERVER}/apim"
+        
+        TAG          = "latest"
+        HTTP_PROXY   = "http://192.168.1.70:3128"
+        HTTPS_PROXY  = "http://192.168.1.70:3128"
     }
     
     stages {
@@ -24,12 +31,11 @@ pipeline {
         stage('Check Files') {
             steps {
                 sh 'ls -lrt'
-                sh 'echo "Checking Dockerfile..."'
                 sh 'ls -l Dockerfile.combined.ci'
             }
         }
         
-        stage('Build Combined Docker Image') {
+        stage('Build Docker Image') {
             steps {
                 script {
                     sh '''
@@ -39,13 +45,17 @@ pipeline {
                           --build-arg https_proxy=$HTTPS_PROXY \
                           --build-arg HTTP_PROXY=$HTTP_PROXY \
                           --build-arg HTTPS_PROXY=$HTTPS_PROXY \
-                          -t $IMAGE_NAME:$TAG .
+                          -t $DOCKERHUB_IMAGE:$TAG \
+                          -t $DOCKERHUB_IMAGE:build-${BUILD_NUMBER} \
+                          -t $ACR_IMAGE:$TAG \
+                          -t $ACR_IMAGE:build-${BUILD_NUMBER} \
+                          .
                     '''
                 }
             }
         }
         
-        stage('Docker Login') {
+        stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker',
@@ -54,40 +64,67 @@ pipeline {
                 )]) {
                     sh '''
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKERHUB_IMAGE:$TAG
+                        docker push $DOCKERHUB_IMAGE:build-${BUILD_NUMBER}
                     '''
                 }
             }
         }
         
-        stage('Push Docker Image') {
+        stage('Push to Azure Container Registry') {
             steps {
-                sh '''
-                    docker push $IMAGE_NAME:$TAG
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
+                    sh '''
+                        echo $ACR_PASS | docker login $ACR_LOGIN_SERVER -u $ACR_USER --password-stdin
+                        docker push $ACR_IMAGE:$TAG
+                        docker push $ACR_IMAGE:build-${BUILD_NUMBER}
+                        echo "✅ Pushed to ACR: $ACR_IMAGE:$TAG"
+                        echo "✅ Pushed to ACR: $ACR_IMAGE:build-${BUILD_NUMBER}"
+                    '''
+                }
             }
         }
         
-        stage('Tag with Build Number') {
+        stage('Update Azure Container App') {
             steps {
-                sh '''
-                    docker tag $IMAGE_NAME:$TAG $IMAGE_NAME:build-${BUILD_NUMBER}
-                    docker push $IMAGE_NAME:build-${BUILD_NUMBER}
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr',
+                    usernameVariable: 'ACR_USER',
+                    passwordVariable: 'ACR_PASS'
+                )]) {
+                    sh '''
+                        # Update the container app to use the new image
+                        # Requires azure-cli installed on Jenkins agent
+                        if command -v az &> /dev/null; then
+                            az containerapp update \
+                              --name ccmp-apim \
+                              --resource-group ${AZURE_RESOURCE_GROUP:-your-resource-group} \
+                              --image $ACR_IMAGE:$TAG \
+                              --output table || echo "⚠️  az cli update skipped — update manually in Azure Portal"
+                        else
+                            echo "⚠️  Azure CLI not installed on agent — image pushed to ACR, update container app manually"
+                            echo "   New image: $ACR_IMAGE:$TAG"
+                        fi
+                    '''
+                }
             }
         }
     }
     
     post {
         success {
-            echo '✅ APIM combined frontend + backend image pushed successfully!'
-            echo "Image: ${IMAGE_NAME}:${TAG}"
-            echo "Build: ${IMAGE_NAME}:build-${BUILD_NUMBER}"
+            echo "✅ Build ${BUILD_NUMBER} pushed successfully!"
+            echo "   Docker Hub: ${DOCKERHUB_IMAGE}:${TAG}"
+            echo "   ACR:        ${ACR_IMAGE}:${TAG}"
         }
         failure {
-            echo '❌ APIM pipeline failed!'
+            echo '❌ Pipeline failed!'
         }
         always {
-            // Clean up dangling images
             sh 'docker image prune -f || true'
         }
     }

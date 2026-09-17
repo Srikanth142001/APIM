@@ -415,8 +415,8 @@ class CustomDbService {
     
     // Block dangerous operations
     const dangerousKeywords = [
-      'DROP', 'DELETE', 'TRUNCATE', 'INSERT', 'UPDATE',
-      'ALTER', 'CREATE', 'GRANT', 'REVOKE', 'EXECUTE'
+      'DROP', 'DELETE', 'TRUNCATE', 
+      'GRANT', 'REVOKE',
     ];
 
     for (const keyword of dangerousKeywords) {

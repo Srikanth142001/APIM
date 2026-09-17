@@ -1,17 +1,4 @@
 version: '3.8'
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# NexGen APIM — Combined Container Deployment
-# Single container running both frontend and backend
-#
-# Usage:
-#   1. Copy .env.combined.example to .env.combined
-#   2. Fill in your Azure credentials and configuration
-#   3. Run: docker-compose -f docker-compose.combined.yml up -d
-#
-# Access: http://localhost:8082
-# ═══════════════════════════════════════════════════════════════════════════════
-
 services:
   apim-combined:
     image: reddy321678/apim:latest
