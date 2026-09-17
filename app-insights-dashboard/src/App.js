@@ -11,6 +11,7 @@ import PerformancePanel from "./pages/PerfPanel";
 import CustomDbQuery from "./pages/CustomDbQuery";
 import CronScheduler from "./pages/CronScheduler";
 import KqlDashboard from "./pages/KqlDashboard";
+import GrafanaPage from "./pages/GrafanaPage";
 import Sidebar from "./components/ui/Sidebar";
 import { isTokenValid } from "./config/axiosSetup";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -75,6 +76,9 @@ function AppRoutes() {
         } />
         <Route path="/cron-scheduler" element={
           <ProtectedRoute><AppLayout><CronScheduler /></AppLayout></ProtectedRoute>
+        } />
+        <Route path="/grafana" element={
+          <ProtectedRoute><AppLayout><GrafanaPage /></AppLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>

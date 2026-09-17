@@ -6,6 +6,7 @@ import {
   FaSignOutAlt, FaChartBar, FaTimesCircle,
   FaSun, FaMoon, FaChartLine, FaNetworkWired, FaClock,
 } from "react-icons/fa";
+import { SiGrafana } from "react-icons/si";
 import { useTheme } from "../../context/ThemeContext";
 import { useFeatures } from "../../context/FeaturesContext";
 
@@ -19,11 +20,13 @@ const ALL_NAV = [
   { label: "Custom DB Query", icon: FaDatabase,            path: "/custom-db",               section: "monitoring", feature: null },
   { label: "KQL Dashboard",   icon: FaChartLine,           path: "/kql-dashboard",           section: "monitoring", feature: null },
   { label: "ML Alerts",       icon: FaNetworkWired,        path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
-  { label: "Cron Scheduler", icon: FaClock,               path: "/cron-scheduler",          section: "monitoring", feature: null },
+  { label: "Cron Scheduler",  icon: FaClock,               path: "/cron-scheduler",          section: "monitoring", feature: null },
+  { label: "Grafana",         icon: SiGrafana,             path: "/grafana",                 section: "tools",      feature: null },
 ];
 
 const SECTIONS = [
   { key: "monitoring", label: "MONITORING" },
+  { key: "tools",      label: "TOOLS" },
 ];
 
 export default function Sidebar({ alertCount = 0 }) {

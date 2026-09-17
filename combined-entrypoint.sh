@@ -57,7 +57,8 @@ echo "  Log Analytics:    ${LOG_ANALYTICS_AUTH_TOKEN:+configured}${LOG_ANALYTICS
 echo ""
 echo "  Frontend:         http://localhost:80"
 echo "  Backend API:      http://localhost:5000 (internal)"
-echo "=========================================="
+echo "  Grafana:          http://localhost:80/grafana  (admin / admin)"
+echo "==========================================="
 
 # ── Start both processes via supervisord ─────────────────────────────────────
 exec supervisord -c /etc/supervisord.conf
