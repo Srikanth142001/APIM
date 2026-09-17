@@ -182,12 +182,12 @@ server {
         expires 0;
     }
 
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+    # Cache static assets — but NOT for /grafana/ paths (Grafana proxies its own)
+    location ~* ^(?!/grafana/).+\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
     }
-
     location /health {
         access_log off;
         return 200 "healthy\n";
