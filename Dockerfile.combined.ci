@@ -34,8 +34,9 @@ RUN npm ci --only=production
 COPY app-insights-backend/ ./
 
 # ── Stage 3: Combined Runtime Image ───────────────────────────────────────────
-# Use Debian slim — Grafana's pre-built binary requires glibc (not musl/Alpine)
-FROM node:18-slim
+# Use full Debian Bookworm node image — required for Grafana glibc binary
+# and for apt packages like supervisor, nginx, curl to be available
+FROM node:18-bookworm-slim
 
 LABEL maintainer="NexGen APIM Team"
 LABEL description="NexGen APIM — Combined single container (frontend + backend + grafana)"
