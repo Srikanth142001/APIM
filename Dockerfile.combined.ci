@@ -70,9 +70,7 @@ RUN apk add --no-cache \
         gettext \
         curl \
         ca-certificates \
-        postgresql16-client \
-        libc6-compat \
-        gcompat
+        postgresql16-client
 
 # Install glibc so Grafana's glibc binary runs on Alpine
 # Using sgerrand's glibc Alpine package (widely used)
@@ -83,7 +81,7 @@ RUN GLIBC_VER="2.35-r1" && \
         -o /tmp/glibc-bin.apk && \
     curl -fsSL "https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub" \
         -o /etc/apk/keys/sgerrand.rsa.pub && \
-    apk add --no-cache --allow-untrusted /tmp/glibc.apk /tmp/glibc-bin.apk && \
+    apk add --no-cache --allow-untrusted --force-overwrite /tmp/glibc.apk /tmp/glibc-bin.apk && \
     rm -f /tmp/glibc.apk /tmp/glibc-bin.apk
 
 # Copy Grafana from downloader stage (no network needed here)
