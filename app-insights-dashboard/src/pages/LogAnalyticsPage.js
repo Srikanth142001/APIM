@@ -1,190 +1,269 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import axios from "axios";
 import { useTheme } from "../context/ThemeContext";
-import { FaClipboardList, FaExternalLinkAlt, FaSearch, FaTable, FaChartBar } from "react-icons/fa";
+import { FaClipboardList, FaPlay, FaChevronRight, FaTable, FaDownload } from "react-icons/fa";
 
-const AZURE_PORTAL_LOG_ANALYTICS = "https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/logs";
-
-// Preset KQL queries for common log analytics use cases
-const PRESET_QUERIES = [
+// ── Preset queries ────────────────────────────────────────────────────────────
+const PRESETS = [
   {
-    label: "App Exceptions (last 1h)",
-    icon: <FaSearch />,
-    query: `exceptions\n| where timestamp > ago(1h)\n| summarize count() by type, outerMessage\n| order by count_ desc\n| take 50`,
+    category: "Requests",
+    items: [
+      { label: "Top failing operations",    kql: `requests\n| where timestamp > ago(1h)\n| where success == false\n| summarize failures=count() by operation_Name, resultCode\n| order by failures desc\n| take 20` },
+      { label: "Response time by operation", kql: `requests\n| where timestamp > ago(1h)\n| summarize avg_ms=round(avg(duration),1), p95_ms=round(percentile(duration,95),1), count=count() by operation_Name\n| order by avg_ms desc\n| take 20` },
+      { label: "Request volume over time",  kql: `requests\n| where timestamp > ago(6h)\n| summarize count() by bin(timestamp, 15m)\n| order by timestamp asc` },
+    ]
   },
   {
-    label: "Request failures by URL",
-    icon: <FaTable />,
-    query: `requests\n| where timestamp > ago(1h)\n| where success == false\n| summarize failures=count() by name, resultCode\n| order by failures desc`,
+    category: "Exceptions",
+    items: [
+      { label: "Top exceptions (1h)",       kql: `exceptions\n| where timestamp > ago(1h)\n| summarize count() by type, outerMessage\n| order by count_ desc\n| take 20` },
+      { label: "Exception timeline",        kql: `exceptions\n| where timestamp > ago(6h)\n| summarize count() by bin(timestamp, 15m)\n| order by timestamp asc` },
+    ]
   },
   {
-    label: "Average response time by operation",
-    icon: <FaChartBar />,
-    query: `requests\n| where timestamp > ago(1h)\n| summarize avg_ms=avg(duration), count() by operation_Name\n| order by avg_ms desc`,
+    category: "Dependencies",
+    items: [
+      { label: "Slow dependencies",         kql: `dependencies\n| where timestamp > ago(1h)\n| where duration > 500\n| summarize count(), avg_ms=round(avg(duration),1) by name, type\n| order by count_ desc\n| take 20` },
+      { label: "Dependency failures",       kql: `dependencies\n| where timestamp > ago(1h)\n| where success == false\n| summarize count() by name, target, type\n| order by count_ desc` },
+    ]
   },
   {
-    label: "Dependency failures",
-    icon: <FaSearch />,
-    query: `dependencies\n| where timestamp > ago(1h)\n| where success == false\n| summarize count() by name, target, type\n| order by count_ desc`,
-  },
-  {
-    label: "Custom events",
-    icon: <FaTable />,
-    query: `customEvents\n| where timestamp > ago(1h)\n| summarize count() by name\n| order by count_ desc`,
+    category: "Custom Events",
+    items: [
+      { label: "Custom events summary",     kql: `customEvents\n| where timestamp > ago(1h)\n| summarize count() by name\n| order by count_ desc` },
+    ]
   },
 ];
 
 export default function LogAnalyticsPage() {
   const { T } = useTheme();
-  const [query, setQuery] = useState(PRESET_QUERIES[0].query);
-  const [copied, setCopied] = useState(false);
+  const [query, setQuery]   = useState(PRESETS[0].items[0].kql);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]   = useState(null);
+  const [activePreset, setActivePreset] = useState(`${PRESETS[0].category}:0`);
+  const textareaRef = useRef(null);
 
-  const workspaceId = window.ENV_CONFIG?.LOG_ANALYTICS_WORKSPACE_ID || "";
-
-  const copyQuery = () => {
-    navigator.clipboard.writeText(query).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+  const runQuery = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const { data } = await axios.post(
+        "/api/kql/query",
+        { query, timespan: "PT1H" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (data.success) {
+        setResult(data);
+      } else {
+        setError(data.message || "Query failed");
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Build deep link to Azure Log Analytics with the query pre-filled
-  const openInAzure = () => {
-    const encoded = encodeURIComponent(query);
-    const url = workspaceId
-      ? `https://portal.azure.com/#@/resource/subscriptions/placeholder/resourceGroups/placeholder/providers/Microsoft.OperationalInsights/workspaces/${workspaceId}/logs?query=${encoded}`
-      : AZURE_PORTAL_LOG_ANALYTICS;
-    window.open(url, "_blank", "noopener,noreferrer");
+  const handleKeyDown = (e) => {
+    // Ctrl+Enter or Cmd+Enter to run
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      runQuery();
+    }
   };
+
+  const downloadCsv = () => {
+    if (!result?.tables?.[0]) return;
+    const table = result.tables[0];
+    const header = table.columns.map(c => c.name).join(",");
+    const rows = table.rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "log_analytics_result.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const table = result?.tables?.[0];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: T.bg, color: T.text }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: T.bg, color: T.text, fontSize: 13 }}>
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 20px", borderBottom: `1px solid ${T.border}`,
+        padding: "9px 16px", borderBottom: `1px solid ${T.border}`,
         background: T.cardBg, flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <FaClipboardList style={{ fontSize: 18, color: T.blue }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Log Analytics</div>
-            <div style={{ fontSize: 11, color: T.muted }}>Azure Monitor — KQL query builder & log explorer</div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <FaClipboardList style={{ color: T.blue, fontSize: 16 }} />
+          <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>Log Analytics</span>
+          <span style={{ fontSize: 11, color: T.muted }}>— Azure Application Insights KQL</span>
         </div>
-        <button
-          onClick={openInAzure}
-          style={{
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {table && (
+            <button onClick={downloadCsv} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 11px", fontSize: 12, cursor: "pointer",
+              border: `1px solid ${T.border}`, borderRadius: 4,
+              background: "transparent", color: T.muted,
+            }}>
+              <FaDownload style={{ fontSize: 10 }} /> Export CSV
+            </button>
+          )}
+          <button onClick={runQuery} disabled={loading} style={{
             display: "flex", alignItems: "center", gap: 6,
-            padding: "7px 14px", background: T.blue, color: "#fff",
-            border: "none", borderRadius: 4, cursor: "pointer",
-            fontSize: 12, fontWeight: 600,
-          }}
-        >
-          <FaExternalLinkAlt style={{ fontSize: 11 }} />
-          Open in Azure Portal
-        </button>
+            padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+            border: "none", borderRadius: 4,
+            background: loading ? T.dim : T.blue, color: "#fff",
+            opacity: loading ? 0.7 : 1,
+          }}>
+            <FaPlay style={{ fontSize: 10 }} />
+            {loading ? "Running..." : "Run Query"}
+            <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 400 }}>Ctrl+↵</span>
+          </button>
+        </div>
       </div>
 
-      {/* ── Body ──────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      {/* ── Body ────────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
 
-        {/* Left: preset queries */}
+        {/* Left sidebar: preset queries */}
         <div style={{
-          width: 220, flexShrink: 0, borderRight: `1px solid ${T.border}`,
-          background: T.cardBg, padding: "12px 0", overflowY: "auto",
+          width: 210, flexShrink: 0, borderRight: `1px solid ${T.border}`,
+          background: T.cardBg, overflowY: "auto", padding: "8px 0",
         }}>
-          <div style={{ padding: "4px 14px 10px", fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: "0.08em" }}>
-            PRESET QUERIES
-          </div>
-          {PRESET_QUERIES.map((p, i) => (
-            <button
-              key={i}
-              onClick={() => setQuery(p.query)}
-              style={{
-                width: "100%", textAlign: "left", padding: "8px 14px",
-                background: query === p.query ? `${T.blue}18` : "transparent",
-                border: "none",
-                borderLeft: query === p.query ? `2px solid ${T.blue}` : "2px solid transparent",
-                color: query === p.query ? T.blue : T.muted,
-                cursor: "pointer", fontSize: 12,
-                display: "flex", alignItems: "center", gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 11, flexShrink: 0 }}>{p.icon}</span>
-              <span style={{ lineHeight: 1.3 }}>{p.label}</span>
-            </button>
+          {PRESETS.map(group => (
+            <div key={group.category}>
+              <div style={{ padding: "10px 12px 4px", fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: "0.08em" }}>
+                {group.category.toUpperCase()}
+              </div>
+              {group.items.map((item, i) => {
+                const key = `${group.category}:${i}`;
+                const active = activePreset === key;
+                return (
+                  <button key={key}
+                    onClick={() => { setQuery(item.kql); setActivePreset(key); }}
+                    style={{
+                      width: "100%", textAlign: "left", padding: "7px 12px",
+                      background: active ? `${T.blue}18` : "transparent",
+                      border: "none",
+                      borderLeft: active ? `2px solid ${T.blue}` : "2px solid transparent",
+                      color: active ? T.blue : T.muted,
+                      cursor: "pointer", fontSize: 12,
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}
+                  >
+                    <FaChevronRight style={{ fontSize: 9, opacity: active ? 1 : 0.4 }} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </div>
 
-        {/* Right: query editor */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-          {/* Toolbar */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 16px", borderBottom: `1px solid ${T.border}`,
-            background: T.cardBg, flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 12, color: T.muted, flex: 1 }}>
-              Edit the query below, then open in Azure Portal to run it against your workspace.
-            </span>
-            <button
-              onClick={copyQuery}
-              style={{
-                padding: "5px 12px", fontSize: 12, cursor: "pointer",
-                border: `1px solid ${T.border}`, borderRadius: 4,
-                background: copied ? `${T.green}22` : "transparent",
-                color: copied ? T.green : T.muted,
-              }}
-            >
-              {copied ? "✓ Copied!" : "Copy Query"}
-            </button>
-            <button
-              onClick={openInAzure}
-              style={{
-                padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                border: "none", borderRadius: 4,
-                background: T.blue, color: "#fff",
-                display: "flex", alignItems: "center", gap: 5,
-              }}
-            >
-              <FaExternalLinkAlt style={{ fontSize: 10 }} /> Run in Azure
-            </button>
-          </div>
+        {/* Right: editor + results */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
           {/* KQL editor */}
-          <textarea
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            spellCheck={false}
-            style={{
-              flex: 1, resize: "none", border: "none", outline: "none",
-              background: T.bg, color: T.text,
-              fontFamily: "'Cascadia Code', 'Fira Code', 'Courier New', monospace",
-              fontSize: 13, lineHeight: 1.6,
-              padding: "16px 20px",
-            }}
-            placeholder="// Enter your KQL query here..."
-          />
+          <div style={{ flexShrink: 0, borderBottom: `1px solid ${T.border}`, position: "relative" }}>
+            <textarea
+              ref={textareaRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              spellCheck={false}
+              rows={7}
+              style={{
+                width: "100%", resize: "vertical", border: "none", outline: "none",
+                background: T.bg, color: T.text,
+                fontFamily: "'Cascadia Code', 'Fira Code', 'Courier New', monospace",
+                fontSize: 12.5, lineHeight: 1.6, padding: "12px 16px",
+                boxSizing: "border-box",
+              }}
+              placeholder="// Enter KQL query here... Press Ctrl+Enter to run"
+            />
+          </div>
 
-          {/* Footer hint */}
-          <div style={{
-            padding: "6px 16px", borderTop: `1px solid ${T.border}`,
-            fontSize: 11, color: T.dim, background: T.cardBg,
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <FaClipboardList style={{ fontSize: 11 }} />
-            Queries run in Azure Log Analytics workspace. Click "Run in Azure" to execute.
-            {workspaceId && (
-              <span style={{ marginLeft: "auto", color: T.green }}>
-                ✓ Workspace ID configured
-              </span>
+          {/* Results area */}
+          <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+            {loading && (
+              <div style={{ padding: 24, color: T.muted, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 18 }}>⏳</span> Running query against Application Insights...
+              </div>
             )}
-            {!workspaceId && (
-              <span style={{ marginLeft: "auto", color: T.muted }}>
-                Set LOG_ANALYTICS_WORKSPACE_ID env var to deep-link to your workspace
-              </span>
+
+            {error && (
+              <div style={{ padding: "12px 16px", color: "#f2495c", background: "rgba(242,73,92,0.08)", borderBottom: `1px solid rgba(242,73,92,0.2)`, fontSize: 12 }}>
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+
+            {table && !loading && (
+              <>
+                {/* Stats bar */}
+                <div style={{
+                  padding: "6px 16px", borderBottom: `1px solid ${T.border}`,
+                  background: T.cardBg, display: "flex", alignItems: "center", gap: 16,
+                  fontSize: 11, color: T.muted, flexShrink: 0,
+                }}>
+                  <span style={{ color: T.green, fontWeight: 600 }}>✓ Success</span>
+                  <span><FaTable style={{ fontSize: 10, marginRight: 4 }} />{table.rowCount} row{table.rowCount !== 1 ? "s" : ""}</span>
+                  <span>{result.executionTime}ms</span>
+                </div>
+
+                {/* Table */}
+                <div style={{ overflow: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        {table.columns.map(col => (
+                          <th key={col.name} style={{
+                            padding: "7px 12px", textAlign: "left", fontWeight: 600,
+                            background: T.cardBg, color: T.muted,
+                            borderBottom: `2px solid ${T.border}`,
+                            whiteSpace: "nowrap", position: "sticky", top: 0,
+                          }}>
+                            {col.name}
+                            <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.6, marginLeft: 4 }}>
+                              {col.type}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.rows.map((row, ri) => (
+                        <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : `${T.border}44` }}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} style={{
+                              padding: "6px 12px", borderBottom: `1px solid ${T.border}55`,
+                              color: T.text, whiteSpace: "nowrap", maxWidth: 320,
+                              overflow: "hidden", textOverflow: "ellipsis",
+                            }}>
+                              {cell === null ? <span style={{ color: T.dim }}>null</span> : String(cell)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {!loading && !error && !result && (
+              <div style={{ padding: 24, color: T.dim, fontSize: 12 }}>
+                Select a preset query from the left or write your own KQL, then press <kbd style={{ background: T.border, padding: "2px 5px", borderRadius: 3 }}>Ctrl+Enter</kbd> or click Run Query.
+              </div>
             )}
           </div>
         </div>
