@@ -290,6 +290,7 @@ router.post("/az-run", (req, res) => {
   if (cmdKey === "login") {
     let output = "";
     let responded = false;
+    const startTime = Date.now();
 
     const proc = exec(command, { timeout: 300000 }); // 5 min max
 
@@ -297,9 +298,10 @@ router.post("/az-run", (req, res) => {
     proc.stderr?.on("data", (chunk) => { output += chunk; });
 
     // Check every 500ms if we have the device code URL
+    // az login writes to stderr, so check combined output
     const checkInterval = setInterval(() => {
-      const urlMatch  = output.match(/https:\/\/microsoft\.com\/devicelogin/);
-      const codeMatch = output.match(/code\s+([A-Z0-9]{8,12})/i);
+      const urlMatch  = output.match(/https:\/\/microsoft\.com\/devicelogin/i);
+      const codeMatch = output.match(/[Cc]ode[:\s]+([A-Z0-9]{8,12})/);
 
       if (urlMatch && !responded) {
         responded = true;
@@ -313,6 +315,13 @@ router.post("/az-run", (req, res) => {
           pending:    true, // tells frontend to poll az-login-status
           message:    `Open https://microsoft.com/devicelogin and enter code: ${codeMatch ? codeMatch[1] : "shown above"}`,
         });
+      }
+
+      // Fallback: if we have any output after 30s but no URL, return what we have
+      if (!responded && output.length > 0 && Date.now() - startTime > 30000) {
+        responded = true;
+        clearInterval(checkInterval);
+        res.json({ success: false, output, exitCode: 1 });
       }
     }, 500);
 
