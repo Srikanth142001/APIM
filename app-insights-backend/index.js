@@ -46,6 +46,8 @@ const kqlRoutes          = require("./routes/kqlRoutes");
 const cronRoutes         = require("./routes/cronRoutes");
 // ── Log Analytics (Azure Monitor workspace) ───────────────────────────────────
 const logAnalyticsRoutes = require("./routes/logAnalyticsRoutes");
+// ── File Upload ───────────────────────────────────────────────────────────────
+const uploadRoutes       = require("./routes/uploadRoutes");
 
 const app = express();
 app.use(cors());
@@ -63,22 +65,6 @@ app.get("/api/features", (req, res) => {
     telegram:       !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
   });
 });
-
-// ── SSE stream endpoint — registered BEFORE global requireAuth ────────────────
-// EventSource cannot send Authorization headers, so we validate via _token query param
-app.get("/api/log-analytics/az-stream", (req, res, next) => {
-  const jwt = require("jsonwebtoken");
-  const qToken = req.query._token;
-  if (!qToken) return res.status(403).json({ error: "No token" });
-  try {
-    const decoded = jwt.verify(qToken, process.env.JWT_SECRET);
-    req.user = decoded;
-    if (decoded.role !== "admin") return res.status(403).json({ error: "Admin only" });
-    next();
-  } catch {
-    return res.status(403).json({ error: "Invalid token" });
-  }
-}, logAnalyticsRoutes);
 
 // ── Protect all other /api/* routes ─────────────────────────────────────────
 app.use("/api", requireAuth);
@@ -123,6 +109,8 @@ app.use("/api/kql",                 kqlRoutes);
 app.use("/api/cron",                cronRoutes);
 // ── Log Analytics ─────────────────────────────────────────────────────────────
 app.use("/api/log-analytics",       logAnalyticsRoutes);
+// ── File Upload ───────────────────────────────────────────────────────────────
+app.use("/api/upload",              uploadRoutes);
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {

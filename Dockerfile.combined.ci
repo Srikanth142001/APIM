@@ -299,7 +299,7 @@ RUN chmod +x /app/refresh-tokens.sh
 COPY combined-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-RUN mkdir -p /app/shared
+RUN mkdir -p /app/shared /app/shared/uploads
 
 EXPOSE 80
 

@@ -239,8 +239,9 @@ router.get("/az-login-status", (req, res) => {
   });
 });
 
-// ── GET /api/log-analytics/az-stream?cmd=... ─────────────────────────────────
-// SSE endpoint — streams az command output in real time to the browser
+// ── POST /api/log-analytics/az-run ───────────────────────────────────────────
+// Polling endpoint — runs an az command synchronously and returns JSON result.
+// Replaces the SSE /az-stream endpoint for better reliability.
 // Allowed commands whitelist for security
 const ALLOWED_COMMANDS = {
   "login":             "az login --use-device-code 2>&1",
@@ -253,73 +254,40 @@ const ALLOWED_COMMANDS = {
   "show-sp-info":      "az ad sp list --display-name apim-monitor-sp --query '[0].{appId:appId,displayName:displayName}' -o json 2>&1 && az account show --query '{tenantId:tenantId,subscriptionId:id}' -o json 2>&1",
 };
 
-router.get("/az-stream", (req, res) => {
+router.post("/az-run", (req, res) => {
   const role = req.user?.role;
   if (role !== "admin") {
-    // Also check query param token for EventSource (can't set headers)
-    const qToken = req.query._token;
-    if (!qToken) return res.status(403).json({ success: false, message: "Admin only" });
-    // Validate token from query param
-    try {
-      const jwt = require("jsonwebtoken");
-      const decoded = jwt.verify(qToken, process.env.JWT_SECRET);
-      if (decoded.role !== "admin") return res.status(403).json({ success: false, message: "Admin only" });
-    } catch {
-      return res.status(403).json({ success: false, message: "Invalid token" });
-    }
+    return res.status(403).json({ success: false, message: "Admin only" });
   }
 
-  const cmdKey = req.query.cmd;
+  const cmdKey = req.body?.cmd;
   const command = ALLOWED_COMMANDS[cmdKey];
   if (!command) {
     return res.status(400).json({ success: false, message: `Unknown command: ${cmdKey}` });
   }
 
-  // SSE headers
-  res.setHeader("Content-Type",  "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection",    "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
-  res.flushHeaders();
-
-  const send = (type, data) => {
-    res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
-  };
-
-  send("start", `$ ${command}`);
-
-  const { spawn } = require("child_process");
-
-  // Check if az is available first
-  const { execSync } = require("child_process");
+  // Check if az is available first (skip for shell scripts)
+  const { exec, execSync } = require("child_process");
   let azAvailable = false;
   try { execSync("which az", { stdio: "ignore" }); azAvailable = true; } catch {}
 
-  if (!azAvailable && cmdKey !== "refresh-tokens") {
-    send("stderr", "ERROR: Azure CLI (az) is not installed in this container.");
-    send("stderr", "Please rebuild the container image to include Azure CLI.");
-    send("stderr", "The Dockerfile installs it via: pip3 install azure-cli");
-    send("done", { exitCode: 1 });
-    res.end();
-    return;
+  if (!azAvailable && !cmdKey.startsWith("refresh") && cmdKey !== "create-sp" && cmdKey !== "configure-grafana") {
+    return res.json({
+      success: false,
+      output: [
+        "ERROR: Azure CLI (az) is not installed in this container.",
+        "Please rebuild the container image to include Azure CLI.",
+        "The Dockerfile installs it via: pip3 install azure-cli",
+      ].join("\n"),
+      exitCode: 1,
+    });
   }
 
-  // Send heartbeat every 15s to keep SSE connection alive through proxies
-  const heartbeat = setInterval(() => {
-    try { res.write(": heartbeat\n\n"); } catch {}
-  }, 15000);
-
-  const proc = spawn("/bin/sh", ["-c", command], { env: { ...process.env, TERM: "xterm" } });
-
-  proc.stdout.on("data", chunk => send("stdout", chunk.toString()));
-  proc.stderr.on("data", chunk => send("stderr", chunk.toString()));
-
-  proc.on("close", code => {
-    send("done", { exitCode: code });
-    res.end();
+  exec(command, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+    const output = (stdout || "") + (stderr || "");
+    const exitCode = err?.code ?? 0;
+    res.json({ success: exitCode === 0, output, exitCode });
   });
-
-  req.on("close", () => { try { proc.kill(); } catch {} });
 });
 
 // ── POST /api/log-analytics/az-set-subscription ──────────────────────────────

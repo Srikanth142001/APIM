@@ -237,34 +237,33 @@ function AzureConfigPanel({ T, token, onStatusChange, status }) {
     setTermLines(prev => [...prev, { type, text }]);
   };
 
-  // ── Stream SSE from backend ──────────────────────────────────────────────────
-  const runStream = (cmdKey, label) => {
+  // ── Poll backend via axios POST (replaces unreliable SSE/EventSource) ────────
+  const runStream = async (cmdKey, label) => {
     if (running) return;
     setRunning(true);
     addLine("cmd", `$ ${label}`);
-
-    const es = new EventSource(`/api/log-analytics/az-stream?cmd=${cmdKey}&_token=${encodeURIComponent(token)}`);
-
-    es.onmessage = (ev) => {
-      try {
-        const { type, data } = JSON.parse(ev.data);
-        if (type === "stdout" || type === "stderr") {
-          data.split("\n").filter(Boolean).forEach(line => addLine(type, line));
-        } else if (type === "done") {
-          addLine("info", `Process exited with code ${data.exitCode}`);
-          es.close();
-          setRunning(false);
-          checkAzStatus();
-          onStatusChange();
+    try {
+      const { data } = await axios.post(
+        "/api/log-analytics/az-run",
+        { cmd: cmdKey },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 120000,
         }
-      } catch {}
-    };
-
-    es.onerror = () => {
-      addLine("error", "Connection lost");
-      es.close();
+      );
+      if (data.output) {
+        data.output.split("\n").filter(Boolean).forEach(line =>
+          addLine(data.exitCode === 0 ? "stdout" : "stderr", line)
+        );
+      }
+      addLine("info", `Exited with code ${data.exitCode}`);
+    } catch (e) {
+      addLine("error", e.response?.data?.message || e.message);
+    } finally {
       setRunning(false);
-    };
+      checkAzStatus();
+      onStatusChange();
+    }
   };
 
   // ── Check az login status ────────────────────────────────────────────────────
