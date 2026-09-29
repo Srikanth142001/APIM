@@ -45,14 +45,14 @@ ARG HTTPS_PROXY
 
 RUN GRAFANA_VERSION="11.1.4" && \
     curl -fsSL --retry 3 \
-        "https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}.linux-amd64.tar.gz" \
+        "https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}.linux-amd64-musl.tar.gz" \
         -o /tmp/grafana.tar.gz && \
     tar -xzf /tmp/grafana.tar.gz -C /tmp && \
     GRAFANA_DIR=$(ls /tmp | grep -E "^grafana" | head -1) && \
     mv /tmp/${GRAFANA_DIR} /tmp/grafana
 
 # ── Stage 4: Combined Runtime Image ───────────────────────────────────────────
-# Alpine + glibc compatibility layer so Grafana's linux-amd64 binary works
+# Uses Grafana's linux-amd64-musl build — no glibc shim needed on Alpine
 FROM node:18-alpine
 
 LABEL maintainer="NexGen APIM Team"
@@ -77,18 +77,6 @@ RUN apk add --no-cache \
 # Install Azure CLI via pip (works on Alpine)
 RUN pip3 install --no-cache-dir --break-system-packages azure-cli 2>/dev/null || \
     pip3 install --no-cache-dir azure-cli
-
-# Install glibc so Grafana's glibc binary runs on Alpine
-# Using sgerrand's glibc Alpine package (widely used)
-RUN GLIBC_VER="2.35-r1" && \
-    curl -fsSL "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-${GLIBC_VER}.apk" \
-        -o /tmp/glibc.apk && \
-    curl -fsSL "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-bin-${GLIBC_VER}.apk" \
-        -o /tmp/glibc-bin.apk && \
-    curl -fsSL "https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub" \
-        -o /etc/apk/keys/sgerrand.rsa.pub && \
-    apk add --no-cache --allow-untrusted --force-overwrite /tmp/glibc.apk /tmp/glibc-bin.apk && \
-    rm -f /tmp/glibc.apk /tmp/glibc-bin.apk
 
 # Copy Grafana from downloader stage (no network needed here)
 COPY --from=grafana-downloader /tmp/grafana /opt/grafana
@@ -195,6 +183,16 @@ server {
         proxy_hide_header X-Frame-Options;
         proxy_hide_header Content-Security-Policy;
         add_header X-Frame-Options "ALLOWALL";
+        # Retry on upstream failure (Grafana still starting)
+        proxy_next_upstream error timeout http_502 http_503;
+        proxy_next_upstream_tries 2;
+        proxy_connect_timeout 5s;
+        error_page 502 503 = @grafana_starting;
+    }
+
+    location @grafana_starting {
+        default_type text/html;
+        return 503 '<html><body style="background:#161719;color:#ccc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">⏳</div><div style="font-size:18px;font-weight:600;color:#F46800">Grafana is starting...</div><div style="margin-top:8px;font-size:13px;color:#888">Please wait 15-30 seconds and reload</div></div></body></html>';
     }
 
     # SSE streaming for az CLI terminal — long timeout, no buffering
