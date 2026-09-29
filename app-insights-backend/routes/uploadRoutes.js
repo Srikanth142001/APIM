@@ -108,7 +108,7 @@ router.get("/list", requireUploadKey, (req, res) => {
 // ── DELETE /api/upload/:filename ──────────────────────────────────────────────
 // :filename is expected in format "YYYY-MM-DD/timestamp_originalname"
 // or just "timestamp_originalname" (searches all date subdirs)
-router.delete("/:filename(*)", requireUploadKey, (req, res) => {
+router.delete("/*filename", requireUploadKey, (req, res) => {
   const rawParam = req.params.filename;
 
   // Prevent path traversal
