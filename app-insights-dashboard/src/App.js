@@ -12,6 +12,7 @@ import CustomDbQuery from "./pages/CustomDbQuery";
 import CronScheduler from "./pages/CronScheduler";
 import KqlDashboard from "./pages/KqlDashboard";
 import GrafanaPage from "./pages/GrafanaPage";
+import LogAnalyticsPage from "./pages/LogAnalyticsPage";
 import Sidebar from "./components/ui/Sidebar";
 import { isTokenValid } from "./config/axiosSetup";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -79,6 +80,9 @@ function AppRoutes() {
         } />
         <Route path="/grafana" element={
           <ProtectedRoute><AppLayout><GrafanaPage /></AppLayout></ProtectedRoute>
+        } />
+        <Route path="/log-analytics" element={
+          <ProtectedRoute><AppLayout><LogAnalyticsPage /></AppLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>

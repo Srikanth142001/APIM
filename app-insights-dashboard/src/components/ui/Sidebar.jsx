@@ -5,23 +5,25 @@ import {
   FaChevronLeft, FaChevronRight,
   FaSignOutAlt, FaChartBar, FaTimesCircle,
   FaSun, FaMoon, FaChartLine, FaNetworkWired, FaClock,
+  FaClipboardList,
 } from "react-icons/fa";
 import { SiGrafana } from "react-icons/si";
 import { useTheme } from "../../context/ThemeContext";
 import { useFeatures } from "../../context/FeaturesContext";
 
 const ALL_NAV = [
-  { label: "Dashboard",       icon: FaTachometerAlt,       path: "/dashboard",               section: "monitoring", feature: null },
-  { label: "API Analytics",   icon: FaChartBar,            path: "/dashboard?tab=analytics", section: "monitoring", feature: null },
-  { label: "Failures Panel",  icon: FaTimesCircle,         path: "/failures",                section: "monitoring", feature: null },
-  { label: "Performance",     icon: FaTachometerAlt,       path: "/performance",             section: "monitoring", feature: null },
-  { label: "Infrastructure",  icon: FaServer,              path: "/dashboard?tab=infra",     section: "monitoring", feature: "infrastructure" },
-  { label: "MySQL",           icon: FaDatabase,            path: "/dashboard?tab=mysql",     section: "monitoring", feature: "mysql" },
-  { label: "Custom DB Query", icon: FaDatabase,            path: "/custom-db",               section: "monitoring", feature: null },
-  { label: "KQL Dashboard",   icon: FaChartLine,           path: "/kql-dashboard",           section: "monitoring", feature: null },
-  { label: "ML Alerts",       icon: FaNetworkWired,        path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
-  { label: "Cron Scheduler",  icon: FaClock,               path: "/cron-scheduler",          section: "monitoring", feature: null },
-  { label: "Grafana",         icon: SiGrafana,             path: "/grafana",                 section: "tools",      feature: null },
+  { label: "Dashboard",          icon: FaTachometerAlt, path: "/dashboard",               section: "monitoring", feature: null },
+  { label: "API Analytics",      icon: FaChartBar,      path: "/dashboard?tab=analytics", section: "monitoring", feature: null },
+  { label: "Failures Panel",     icon: FaTimesCircle,   path: "/failures",                section: "monitoring", feature: null },
+  { label: "Performance",        icon: FaTachometerAlt, path: "/performance",             section: "monitoring", feature: null },
+  { label: "Infrastructure",     icon: FaServer,        path: "/dashboard?tab=infra",     section: "monitoring", feature: "infrastructure" },
+  { label: "MySQL",              icon: FaDatabase,      path: "/dashboard?tab=mysql",     section: "monitoring", feature: "mysql" },
+  { label: "Custom DB Query",    icon: FaDatabase,      path: "/custom-db",               section: "monitoring", feature: null },
+  { label: "KQL Dashboard",      icon: FaChartLine,     path: "/kql-dashboard",           section: "monitoring", feature: null },
+  { label: "ML Alerts",          icon: FaNetworkWired,  path: "/dashboard?tab=ml-alerts", section: "monitoring", feature: null },
+  { label: "Cron Scheduler",     icon: FaClock,         path: "/cron-scheduler",          section: "monitoring", feature: null },
+  { label: "Data Visualization", icon: SiGrafana,       path: "/grafana",                 section: "tools",      feature: null },
+  { label: "Log Analytics",      icon: FaClipboardList, path: "/log-analytics",           section: "tools",      feature: null },
 ];
 
 const SECTIONS = [

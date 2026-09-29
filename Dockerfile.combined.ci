@@ -103,14 +103,21 @@ admin_user = admin
 admin_password = admin
 allow_embedding = true
 cookie_samesite = disabled
+disable_gravatar = true
+
+[auth]
+disable_login_form = true
+disable_signout_menu = true
 
 [auth.anonymous]
 enabled = true
 org_name = Main Org.
-org_role = Viewer
+# Give anonymous users Editor role so admins can manage via UI without logging in
+org_role = Editor
 
-[auth]
-disable_login_form = false
+[users]
+auto_assign_org = true
+auto_assign_org_role = Editor
 
 [feature_toggles]
 # Hide Grafana top nav when embedded
