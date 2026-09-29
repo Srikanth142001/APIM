@@ -44,6 +44,8 @@ const customDbRoutes     = require("./routes/customDbRoutes");
 const kqlRoutes          = require("./routes/kqlRoutes");
 // ── Cron Job Scheduler ───────────────────────────────────────────────────────
 const cronRoutes         = require("./routes/cronRoutes");
+// ── Log Analytics (Azure Monitor workspace) ───────────────────────────────────
+const logAnalyticsRoutes = require("./routes/logAnalyticsRoutes");
 
 const app = express();
 app.use(cors());
@@ -103,6 +105,8 @@ app.use("/api/custom-db",           customDbRoutes);
 app.use("/api/kql",                 kqlRoutes);
 // ── Cron Job Scheduler ───────────────────────────────────────────────────────
 app.use("/api/cron",                cronRoutes);
+// ── Log Analytics ─────────────────────────────────────────────────────────────
+app.use("/api/log-analytics",       logAnalyticsRoutes);
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {
