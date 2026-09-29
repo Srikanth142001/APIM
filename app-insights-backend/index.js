@@ -64,6 +64,22 @@ app.get("/api/features", (req, res) => {
   });
 });
 
+// ── SSE stream endpoint — registered BEFORE global requireAuth ────────────────
+// EventSource cannot send Authorization headers, so we validate via _token query param
+app.get("/api/log-analytics/az-stream", (req, res, next) => {
+  const jwt = require("jsonwebtoken");
+  const qToken = req.query._token;
+  if (!qToken) return res.status(403).json({ error: "No token" });
+  try {
+    const decoded = jwt.verify(qToken, process.env.JWT_SECRET);
+    req.user = decoded;
+    if (decoded.role !== "admin") return res.status(403).json({ error: "Admin only" });
+    next();
+  } catch {
+    return res.status(403).json({ error: "Invalid token" });
+  }
+}, logAnalyticsRoutes);
+
 // ── Protect all other /api/* routes ─────────────────────────────────────────
 app.use("/api", requireAuth);
 
