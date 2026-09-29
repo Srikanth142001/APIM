@@ -256,7 +256,23 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 environment=GF_PATHS_DATA="/var/lib/grafana",GF_PATHS_LOGS="/var/log/grafana",GF_PATHS_PLUGINS="/var/lib/grafana/plugins",GF_PATHS_PROVISIONING="/etc/grafana/provisioning"
+
+[program:token-refresh]
+; Runs once on startup, then every 50 minutes via a loop
+; Fetches Log Analytics + Management API tokens using Service Principal
+command=/bin/sh -c 'while true; do /app/refresh-tokens.sh; sleep 3000; done'
+autostart=true
+autorestart=true
+startretries=3
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
 SUPERVISORD_CONF
+
+# ── Copy token refresh script ──────────────────────────────────────────────────
+COPY refresh-tokens.sh /app/refresh-tokens.sh
+RUN chmod +x /app/refresh-tokens.sh
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 COPY combined-entrypoint.sh /entrypoint.sh
