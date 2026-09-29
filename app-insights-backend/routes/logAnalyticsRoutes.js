@@ -266,12 +266,13 @@ router.post("/az-run", (req, res) => {
     return res.status(400).json({ success: false, message: `Unknown command: ${cmdKey}` });
   }
 
-  // Check if az is available first (skip for shell scripts)
   const { exec, execSync } = require("child_process");
+
+  // Check if az is available first
   let azAvailable = false;
   try { execSync("which az", { stdio: "ignore" }); azAvailable = true; } catch {}
 
-  if (!azAvailable && !cmdKey.startsWith("refresh") && cmdKey !== "create-sp" && cmdKey !== "configure-grafana") {
+  if (!azAvailable && !["refresh-tokens", "create-sp", "configure-grafana"].includes(cmdKey)) {
     return res.json({
       success: false,
       output: [
@@ -283,6 +284,58 @@ router.post("/az-run", (req, res) => {
     });
   }
 
+  // ── Special handling for az login — interactive command ──────────────────
+  // az login --use-device-code outputs the URL immediately then waits.
+  // We capture the URL and return it right away, then continue in background.
+  if (cmdKey === "login") {
+    let output = "";
+    let responded = false;
+
+    const proc = exec(command, { timeout: 300000 }); // 5 min max
+
+    proc.stdout?.on("data", (chunk) => { output += chunk; });
+    proc.stderr?.on("data", (chunk) => { output += chunk; });
+
+    // Check every 500ms if we have the device code URL
+    const checkInterval = setInterval(() => {
+      const urlMatch  = output.match(/https:\/\/microsoft\.com\/devicelogin/);
+      const codeMatch = output.match(/code\s+([A-Z0-9]{8,12})/i);
+
+      if (urlMatch && !responded) {
+        responded = true;
+        clearInterval(checkInterval);
+        res.json({
+          success:    true,
+          exitCode:   0,
+          output:     output,
+          deviceUrl:  "https://microsoft.com/devicelogin",
+          deviceCode: codeMatch ? codeMatch[1] : null,
+          pending:    true, // tells frontend to poll az-login-status
+          message:    `Open https://microsoft.com/devicelogin and enter code: ${codeMatch ? codeMatch[1] : "shown above"}`,
+        });
+      }
+    }, 500);
+
+    proc.on("close", (code) => {
+      clearInterval(checkInterval);
+      if (!responded) {
+        responded = true;
+        res.json({ success: code === 0, output, exitCode: code ?? 0 });
+      }
+    });
+
+    proc.on("error", (err) => {
+      clearInterval(checkInterval);
+      if (!responded) {
+        responded = true;
+        res.json({ success: false, output: err.message, exitCode: 1 });
+      }
+    });
+
+    return; // handled above
+  }
+
+  // ── All other commands run synchronously ──────────────────────────────────
   exec(command, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
     const output = (stdout || "") + (stderr || "");
     const exitCode = err?.code ?? 0;

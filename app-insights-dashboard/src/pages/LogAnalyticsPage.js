@@ -237,7 +237,7 @@ function AzureConfigPanel({ T, token, onStatusChange, status }) {
     setTermLines(prev => [...prev, { type, text }]);
   };
 
-  // ── Poll backend via axios POST (replaces unreliable SSE/EventSource) ────────
+  // ── Poll backend via axios POST ─────────────────────────────────────────────
   const runStream = async (cmdKey, label) => {
     if (running) return;
     setRunning(true);
@@ -246,16 +246,50 @@ function AzureConfigPanel({ T, token, onStatusChange, status }) {
       const { data } = await axios.post(
         "/api/log-analytics/az-run",
         { cmd: cmdKey },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 120000,
-        }
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 180000 }
       );
+
       if (data.output) {
         data.output.split("\n").filter(Boolean).forEach(line =>
           addLine(data.exitCode === 0 ? "stdout" : "stderr", line)
         );
       }
+
+      // Special handling for az login device code flow
+      if (data.pending && data.deviceUrl) {
+        addLine("ok", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        addLine("ok", "  OPEN THIS URL IN YOUR BROWSER:");
+        addLine("ok", `  ${data.deviceUrl}`);
+        if (data.deviceCode) {
+          addLine("ok", `  ENTER CODE: ${data.deviceCode}`);
+        }
+        addLine("ok", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        addLine("info", "Waiting for authentication... (polling every 5s)");
+
+        // Poll az-login-status every 5 seconds until logged in
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const { data: st } = await axios.get("/api/log-analytics/az-login-status", {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (st.loggedIn) {
+              clearInterval(poll);
+              setRunning(false);
+              addLine("ok", `✓ Successfully logged in as: ${st.account?.user || "Azure user"}`);
+              checkAzStatus();
+              onStatusChange();
+            } else if (attempts >= 36) { // 3 min max
+              clearInterval(poll);
+              setRunning(false);
+              addLine("error", "Authentication timed out. Please try again.");
+            }
+          } catch { /* keep polling */ }
+        }, 5000);
+        return; // don't call setRunning(false) here — polling loop handles it
+      }
+
       addLine("info", `Exited with code ${data.exitCode}`);
     } catch (e) {
       addLine("error", e.response?.data?.message || e.message);
