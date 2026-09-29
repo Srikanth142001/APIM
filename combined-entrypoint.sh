@@ -37,6 +37,12 @@ echo "   Project: ${PROJECT_NAME}"
 echo "   Logo: ${PROJECT_LOGO}"
 echo "   Top APIs Limit: ${TOP_APIS_LIMIT}"
 
+# ── Override Grafana admin password if GRAFANA_ADMIN_PASSWORD is set ─────────
+if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then
+  sed -i "s/^admin_password = .*/admin_password = ${GRAFANA_ADMIN_PASSWORD}/" /etc/grafana/grafana.ini
+  echo "✅ Grafana admin password overridden from GRAFANA_ADMIN_PASSWORD"
+fi
+
 # ── Validate required backend env vars ────────────────────────────────────────
 if [ -z "$APP_INSIGHTS_APP_ID" ] || [ -z "$APP_INSIGHTS_API_KEY" ]; then
   echo "⚠️  WARNING: APP_INSIGHTS_APP_ID or APP_INSIGHTS_API_KEY not set"
@@ -57,7 +63,7 @@ echo "  Log Analytics:    ${LOG_ANALYTICS_AUTH_TOKEN:+configured}${LOG_ANALYTICS
 echo ""
 echo "  Frontend:         http://localhost:80"
 echo "  Backend API:      http://localhost:5000 (internal)"
-echo "  Grafana:          http://localhost:80/grafana  (admin / admin)"
+echo "  Grafana:          http://localhost:80/grafana  (viewers: auto-login | admins: use Data Sources/Alerts tabs → sign in as admin / ${GRAFANA_ADMIN_PASSWORD:-admin})"
 echo "==========================================="
 
 # ── Start all processes via supervisord ──────────────────────────────────────

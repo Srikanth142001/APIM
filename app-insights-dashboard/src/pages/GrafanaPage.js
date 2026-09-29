@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { SiGrafana } from "react-icons/si";
-import { FaExternalLinkAlt, FaThLarge, FaCog, FaDatabase } from "react-icons/fa";
+import { FaExternalLinkAlt, FaThLarge, FaCog, FaDatabase, FaBell } from "react-icons/fa";
 
 const BASE = "/grafana";
 
@@ -10,18 +10,24 @@ export default function GrafanaPage() {
   const role = localStorage.getItem("auth_role") || "viewer";
   const isAdmin = role === "admin";
 
-  // Modes: dashboards (everyone) | datasources (admin) | newdashboard (admin)
+  // Modes: dashboards (everyone) | datasources (admin) | newdashboard (admin) | alerting (admin)
   const [mode, setMode] = useState("dashboards");
   const [iframeKey, setIframeKey] = useState(0);
   const iframeRef = useRef(null);
 
+  // Admin paths use ?forceLogin=true so Grafana shows the login form
+  // (default creds: admin / admin) instead of staying as anonymous viewer.
+  // Viewer gets dashboards in kiosk mode (no Grafana chrome).
   const getSrc = () => {
     switch (mode) {
-      case "datasources": return `${BASE}/connections/datasources`;
-      case "newdashboard": return `${BASE}/dashboard/new`;
-      default:            return `${BASE}/dashboards?kiosk`;
+      case "datasources":  return `${BASE}/connections/datasources?forceLogin=true`;
+      case "newdashboard": return `${BASE}/dashboard/new?forceLogin=true`;
+      case "alerting":     return `${BASE}/alerting/list?forceLogin=true`;
+      default:             return `${BASE}/dashboards?kiosk`;
     }
   };
+
+  const isAdminMode = isAdmin && mode !== "dashboards";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: T.bg }}>
@@ -69,6 +75,13 @@ export default function GrafanaPage() {
                 label="New Dashboard"
                 activeColor="#F46800"
               />
+              <Tab
+                active={mode === "alerting"}
+                onClick={() => { setMode("alerting"); setIframeKey(k => k + 1); }}
+                icon={<FaBell style={{ fontSize: 11 }} />}
+                label="Alerts"
+                activeColor="#F46800"
+              />
             </>
           )}
 
@@ -96,6 +109,23 @@ export default function GrafanaPage() {
           </a>
         </div>
       </div>
+
+      {/* ── Admin login hint banner ─────────────────────────────────────────── */}
+      {isAdminMode && (
+        <div style={{
+          padding: "6px 16px", background: "rgba(244,104,0,0.10)",
+          borderBottom: `1px solid rgba(244,104,0,0.25)`,
+          fontSize: 12, color: "#F46800", flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <FaBell style={{ fontSize: 11 }} />
+          Sign in with Grafana admin credentials to manage this section.
+          Default: <strong>admin / admin</strong>
+          <span style={{ opacity: 0.6, marginLeft: 4 }}>
+            (change via GRAFANA_ADMIN_PASSWORD env var)
+          </span>
+        </div>
+      )}
 
       {/* ── iframe ──────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>

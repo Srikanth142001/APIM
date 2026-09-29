@@ -112,28 +112,30 @@ cookie_samesite = disabled
 disable_gravatar = true
 
 [auth]
-disable_login_form = true
-disable_signout_menu = true
+# Login form MUST be enabled so admins can sign in to manage data sources & alerts
+disable_login_form = false
+disable_signout_menu = false
 
 [auth.anonymous]
 enabled = true
 org_name = Main Org.
-# Give anonymous users Editor role so admins can manage via UI without logging in
-org_role = Editor
+# Viewer role: anonymous users can see dashboards but cannot edit or manage
+org_role = Viewer
 
 [users]
 auto_assign_org = true
-auto_assign_org_role = Editor
+auto_assign_org_role = Viewer
 
 [feature_toggles]
 # Hide Grafana top nav when embedded
 topnav = false
 
 [unified_alerting]
-enabled = false
+# Must be enabled for alert rules, contact points, notification policies
+enabled = true
 
 [alerting]
-enabled = false
+enabled = true
 
 [log]
 mode = console
