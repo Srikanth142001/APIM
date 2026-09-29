@@ -248,6 +248,9 @@ const ALLOWED_COMMANDS = {
   "account-list":      "az account list --query '[].{name:name,id:id,isDefault:isDefault}' -o table 2>&1",
   "refresh-tokens":    "/app/refresh-tokens.sh 2>&1",
   "logout":            "az logout 2>&1",
+  "create-sp":         "/app/create-sp.sh 2>&1",
+  "configure-grafana": "/app/configure-grafana.sh 2>&1",
+  "show-sp-info":      "az ad sp list --display-name apim-monitor-sp --query '[0].{appId:appId,displayName:displayName}' -o json 2>&1 && az account show --query '{tenantId:tenantId,subscriptionId:id}' -o json 2>&1",
 };
 
 router.get("/az-stream", (req, res) => {
@@ -286,6 +289,26 @@ router.get("/az-stream", (req, res) => {
   send("start", `$ ${command}`);
 
   const { spawn } = require("child_process");
+
+  // Check if az is available first
+  const { execSync } = require("child_process");
+  let azAvailable = false;
+  try { execSync("which az", { stdio: "ignore" }); azAvailable = true; } catch {}
+
+  if (!azAvailable && cmdKey !== "refresh-tokens") {
+    send("stderr", "ERROR: Azure CLI (az) is not installed in this container.");
+    send("stderr", "Please rebuild the container image to include Azure CLI.");
+    send("stderr", "The Dockerfile installs it via: pip3 install azure-cli");
+    send("done", { exitCode: 1 });
+    res.end();
+    return;
+  }
+
+  // Send heartbeat every 15s to keep SSE connection alive through proxies
+  const heartbeat = setInterval(() => {
+    try { res.write(": heartbeat\n\n"); } catch {}
+  }, 15000);
+
   const proc = spawn("/bin/sh", ["-c", command], { env: { ...process.env, TERM: "xterm" } });
 
   proc.stdout.on("data", chunk => send("stdout", chunk.toString()));
