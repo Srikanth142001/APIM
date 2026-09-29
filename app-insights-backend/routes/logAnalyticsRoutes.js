@@ -168,4 +168,172 @@ router.post("/refresh-now", (req, res) => {
   });
 });
 
+// ── POST /api/log-analytics/az-login ─────────────────────────────────────────
+// Admin-only: initiate az login --use-device-code
+// Returns the device code URL so the admin can authenticate in a browser
+router.post("/az-login", (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin") {
+    return res.status(403).json({ success: false, message: "Admin only" });
+  }
+
+  const { exec } = require("child_process");
+
+  // Run az login with device code — capture the URL from output
+  // az login outputs the device code message to stderr
+  const proc = exec("az login --use-device-code --output json 2>&1", { timeout: 120000 });
+
+  let output = "";
+  let deviceInfo = null;
+
+  proc.stdout?.on("data", (data) => {
+    output += data;
+
+    // Detect device code message: "To sign in, use a web browser to open the page..."
+    if (!deviceInfo && output.includes("https://microsoft.com/devicelogin")) {
+      const codeMatch  = output.match(/code\s+([A-Z0-9]{8,12})/i);
+      const urlMatch   = output.match(/(https:\/\/microsoft\.com\/devicelogin)/);
+      if (urlMatch) {
+        deviceInfo = {
+          url:  urlMatch[1],
+          code: codeMatch ? codeMatch[1] : null,
+        };
+        // Send device info immediately so admin can authenticate
+        res.json({
+          success:    true,
+          waiting:    true,
+          deviceUrl:  deviceInfo.url,
+          deviceCode: deviceInfo.code,
+          message:    `Open ${deviceInfo.url} and enter code: ${deviceInfo.code}`,
+        });
+      }
+    }
+  });
+
+  proc.on("close", (code) => {
+    // If we already sent response (device code), ignore
+    if (res.headersSent) return;
+
+    if (code === 0) {
+      res.json({ success: true, waiting: false, message: "Login successful" });
+    } else {
+      res.status(500).json({ success: false, message: `az login failed: ${output}` });
+    }
+  });
+});
+
+// ── GET /api/log-analytics/az-login-status ───────────────────────────────────
+// Check if az is currently logged in
+router.get("/az-login-status", (req, res) => {
+  const { exec } = require("child_process");
+  exec("az account show --query '{name:name, id:id, user:user.name}' -o json 2>/dev/null", (err, stdout) => {
+    if (err || !stdout.trim()) {
+      return res.json({ loggedIn: false });
+    }
+    try {
+      const account = JSON.parse(stdout);
+      res.json({ loggedIn: true, account });
+    } catch {
+      res.json({ loggedIn: false });
+    }
+  });
+});
+
+// ── GET /api/log-analytics/az-stream?cmd=... ─────────────────────────────────
+// SSE endpoint — streams az command output in real time to the browser
+// Allowed commands whitelist for security
+const ALLOWED_COMMANDS = {
+  "login":             "az login --use-device-code 2>&1",
+  "account-show":      "az account show -o json 2>&1",
+  "account-list":      "az account list --query '[].{name:name,id:id,isDefault:isDefault}' -o table 2>&1",
+  "refresh-tokens":    "/app/refresh-tokens.sh 2>&1",
+  "logout":            "az logout 2>&1",
+};
+
+router.get("/az-stream", (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin") {
+    // Also check query param token for EventSource (can't set headers)
+    const qToken = req.query._token;
+    if (!qToken) return res.status(403).json({ success: false, message: "Admin only" });
+    // Validate token from query param
+    try {
+      const jwt = require("jsonwebtoken");
+      const decoded = jwt.verify(qToken, process.env.JWT_SECRET);
+      if (decoded.role !== "admin") return res.status(403).json({ success: false, message: "Admin only" });
+    } catch {
+      return res.status(403).json({ success: false, message: "Invalid token" });
+    }
+  }
+
+  const cmdKey = req.query.cmd;
+  const command = ALLOWED_COMMANDS[cmdKey];
+  if (!command) {
+    return res.status(400).json({ success: false, message: `Unknown command: ${cmdKey}` });
+  }
+
+  // SSE headers
+  res.setHeader("Content-Type",  "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection",    "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
+  res.flushHeaders();
+
+  const send = (type, data) => {
+    res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+  };
+
+  send("start", `$ ${command}`);
+
+  const { spawn } = require("child_process");
+  const proc = spawn("/bin/sh", ["-c", command], { env: { ...process.env, TERM: "xterm" } });
+
+  proc.stdout.on("data", chunk => send("stdout", chunk.toString()));
+  proc.stderr.on("data", chunk => send("stderr", chunk.toString()));
+
+  proc.on("close", code => {
+    send("done", { exitCode: code });
+    res.end();
+  });
+
+  req.on("close", () => { try { proc.kill(); } catch {} });
+});
+
+// ── POST /api/log-analytics/az-set-subscription ──────────────────────────────
+router.post("/az-set-subscription", (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin") return res.status(403).json({ success: false, message: "Admin only" });
+
+  const { subscriptionId } = req.body;
+  if (!subscriptionId) return res.status(400).json({ success: false, message: "subscriptionId required" });
+
+  // Validate UUID format
+  if (!/^[0-9a-f-]{36}$/i.test(subscriptionId)) {
+    return res.status(400).json({ success: false, message: "Invalid subscription ID format" });
+  }
+
+  const { exec } = require("child_process");
+  exec(`az account set --subscription "${subscriptionId}" 2>&1`, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ success: false, message: stderr || err.message });
+    res.json({ success: true, message: `Subscription set to ${subscriptionId}` });
+  });
+});
+
+// ── GET /api/log-analytics/subscriptions ─────────────────────────────────────
+router.get("/subscriptions", (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin") return res.status(403).json({ success: false, message: "Admin only" });
+
+  const { exec } = require("child_process");
+  exec("az account list --query '[].{name:name,id:id,isDefault:isDefault,state:state}' -o json 2>/dev/null", (err, stdout) => {
+    if (err || !stdout.trim()) return res.json({ success: false, subscriptions: [] });
+    try {
+      const subs = JSON.parse(stdout);
+      res.json({ success: true, subscriptions: subs });
+    } catch {
+      res.json({ success: false, subscriptions: [] });
+    }
+  });
+});
+
 module.exports = router;

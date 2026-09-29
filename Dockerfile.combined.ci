@@ -70,7 +70,13 @@ RUN apk add --no-cache \
         gettext \
         curl \
         ca-certificates \
-        postgresql16-client
+        postgresql16-client \
+        python3 \
+        py3-pip
+
+# Install Azure CLI via pip (works on Alpine)
+RUN pip3 install --no-cache-dir --break-system-packages azure-cli 2>/dev/null || \
+    pip3 install --no-cache-dir azure-cli
 
 # Install glibc so Grafana's glibc binary runs on Alpine
 # Using sgerrand's glibc Alpine package (widely used)
