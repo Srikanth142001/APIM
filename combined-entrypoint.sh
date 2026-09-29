@@ -43,6 +43,33 @@ if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then
   echo "✅ Grafana admin password overridden from GRAFANA_ADMIN_PASSWORD"
 fi
 
+# ── Auto-provision Azure Monitor datasource in Grafana if credentials are set ─
+# This writes a provisioning YAML so Grafana loads it on startup.
+# Can also be triggered from the Log Analytics Config tab at runtime.
+if [ -n "$AZURE_SUBSCRIPTION_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
+  PROV_FILE="/etc/grafana/provisioning/datasources/azure-monitor.yaml"
+  cat > "$PROV_FILE" <<EOF
+apiVersion: 1
+datasources:
+  - name: Azure Monitor
+    type: grafana-azure-monitor-datasource
+    access: proxy
+    jsonData:
+      cloudName: azuremonitor
+      azureAuthType: currentuser
+      subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
+      tenantId: "${AZURE_TENANT_ID}"
+      ${APP_INSIGHTS_APP_ID:+appInsightsAppId: \"${APP_INSIGHTS_APP_ID}\"}
+      ${LOG_ANALYTICS_WORKSPACE_ID:+logAnalyticsDefaultWorkspace: \"${LOG_ANALYTICS_WORKSPACE_ID}\"}
+    version: 1
+    editable: true
+EOF
+  echo "✅ Grafana Azure Monitor datasource provisioned (subscription: ${AZURE_SUBSCRIPTION_ID})"
+else
+  echo "ℹ️  Grafana datasource not provisioned (AZURE_SUBSCRIPTION_ID / AZURE_TENANT_ID not set)"
+  echo "   Use the Log Analytics → Config tab to provision it at runtime after az login"
+fi
+
 # ── Validate required backend env vars ────────────────────────────────────────
 if [ -z "$APP_INSIGHTS_APP_ID" ] || [ -z "$APP_INSIGHTS_API_KEY" ]; then
   echo "⚠️  WARNING: APP_INSIGHTS_APP_ID or APP_INSIGHTS_API_KEY not set"

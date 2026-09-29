@@ -254,6 +254,10 @@ const ALLOWED_COMMANDS = {
   "show-sp-info":      "az ad sp list --display-name apim-monitor-sp --query '[0].{appId:appId,displayName:displayName}' -o json 2>&1 && az account show --query '{tenantId:tenantId,subscriptionId:id}' -o json 2>&1",
 };
 
+// Track login processes to prevent duplicate runs
+let activeLoginProc = null;
+let loginCooldownUntil = 0;
+
 router.post("/az-run", (req, res) => {
   const role = req.user?.role;
   if (role !== "admin") {
@@ -288,11 +292,33 @@ router.post("/az-run", (req, res) => {
   // az login --use-device-code outputs the URL immediately then waits.
   // We capture the URL and return it right away, then continue in background.
   if (cmdKey === "login") {
+    // Prevent duplicate login processes
+    if (activeLoginProc) {
+      return res.json({
+        success: false,
+        output: "A login process is already running. Please wait or check your browser for the device code.",
+        exitCode: 1,
+      });
+    }
+    // Cooldown: prevent rapid re-runs (MSAL "Attempted too soon" error)
+    const now = Date.now();
+    if (now < loginCooldownUntil) {
+      const waitSec = Math.ceil((loginCooldownUntil - now) / 1000);
+      return res.json({
+        success: false,
+        output: `Please wait ${waitSec} more seconds before trying to log in again.`,
+        exitCode: 1,
+      });
+    }
+    // Set 15s cooldown before allowing another login attempt
+    loginCooldownUntil = now + 15000;
+
     let output = "";
     let responded = false;
     const startTime = Date.now();
 
     const proc = exec(command, { timeout: 300000 }); // 5 min max
+    activeLoginProc = proc;
 
     proc.stdout?.on("data", (chunk) => { output += chunk; });
     proc.stderr?.on("data", (chunk) => { output += chunk; });
@@ -326,6 +352,7 @@ router.post("/az-run", (req, res) => {
     }, 500);
 
     proc.on("close", (code) => {
+      activeLoginProc = null;
       clearInterval(checkInterval);
       if (!responded) {
         responded = true;
@@ -334,6 +361,7 @@ router.post("/az-run", (req, res) => {
     });
 
     proc.on("error", (err) => {
+      activeLoginProc = null;
       clearInterval(checkInterval);
       if (!responded) {
         responded = true;
@@ -387,6 +415,81 @@ router.get("/subscriptions", (req, res) => {
       res.json({ success: false, subscriptions: [] });
     }
   });
+});
+
+// ── POST /api/log-analytics/grafana-provision ─────────────────────────────────
+// Admin-only: write Grafana Azure Monitor datasource provisioning file.
+// Called after az login + subscription selection so Grafana picks up the datasource.
+router.post("/grafana-provision", (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin") return res.status(403).json({ success: false, message: "Admin only" });
+
+  const { exec } = require("child_process");
+
+  // Get current subscription and tenant from az
+  exec(
+    "az account show --query '{subscriptionId:id,tenantId:tenantId}' -o json 2>/dev/null",
+    (err, stdout) => {
+      let subscriptionId = process.env.AZURE_SUBSCRIPTION_ID || "";
+      let tenantId       = process.env.AZURE_TENANT_ID || "";
+
+      if (!err && stdout?.trim()) {
+        try {
+          const account = JSON.parse(stdout);
+          subscriptionId = account.subscriptionId || subscriptionId;
+          tenantId       = account.tenantId || tenantId;
+        } catch {}
+      }
+
+      if (!subscriptionId || !tenantId) {
+        return res.status(400).json({
+          success: false,
+          message: "Could not determine subscription/tenant. Please ensure az login is complete and a subscription is selected.",
+        });
+      }
+
+      // Build provisioning YAML for Grafana Azure Monitor datasource
+      // Uses az CLI managed identity / logged-in user via "currentuser" auth
+      const appInsightsId  = process.env.APP_INSIGHTS_APP_ID || "";
+      const workspaceId    = process.env.LOG_ANALYTICS_WORKSPACE_ID || req.body?.workspaceId || "";
+      const resourceGroup  = process.env.AZURE_RESOURCE_GROUP || "";
+
+      const yaml = `apiVersion: 1
+datasources:
+  - name: Azure Monitor
+    type: grafana-azure-monitor-datasource
+    access: proxy
+    jsonData:
+      cloudName: azuremonitor
+      azureAuthType: currentuser
+      subscriptionId: "${subscriptionId}"
+      tenantId: "${tenantId}"
+      ${appInsightsId ? `appInsightsAppId: "${appInsightsId}"` : ""}
+      ${workspaceId   ? `logAnalyticsDefaultWorkspace: "${workspaceId}"` : ""}
+    version: 1
+    editable: true
+`;
+
+      const provPath = "/etc/grafana/provisioning/datasources/azure-monitor.yaml";
+      fs.writeFile(provPath, yaml, (werr) => {
+        if (werr) {
+          return res.status(500).json({ success: false, message: `Failed to write provisioning file: ${werr.message}` });
+        }
+
+        // Signal Grafana to reload provisioning (SIGHUP)
+        exec("kill -HUP $(pgrep -f 'grafana server') 2>/dev/null || true", () => {
+          res.json({
+            success: true,
+            message: "Azure Monitor datasource provisioned in Grafana. Grafana will reload in ~5 seconds.",
+            subscriptionId,
+            tenantId,
+            appInsightsId: appInsightsId || "(not set)",
+            workspaceId:   workspaceId   || "(not set)",
+          });
+        });
+      });
+    }
+  );
 });
 
 module.exports = router;

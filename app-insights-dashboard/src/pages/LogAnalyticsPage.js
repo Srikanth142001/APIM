@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useTheme } from "../context/ThemeContext";
 import {
   FaClipboardList, FaPlay, FaChevronRight, FaDownload,
-  FaDatabase, FaCog, FaSync, FaCheckCircle, FaTimesCircle,
-  FaTerminal, FaSignInAlt, FaSignOutAlt, FaList,
+  FaDatabase, FaCog,
 } from "react-icons/fa";
 
 // ── Preset queries ────────────────────────────────────────────────────────────
@@ -214,108 +213,52 @@ export default function LogAnalyticsPage() {
   );
 }
 
-// ── Azure Config Panel with interactive terminal ───────────────────────────────
+// ── Azure Config Panel — fully interactive wizard ────────────────────────────
 function AzureConfigPanel({ T, token, onStatusChange, status }) {
-  const [termLines, setTermLines]           = useState([{ type: "info", text: "Azure CLI terminal ready. Use the buttons below to connect your Azure account." }]);
-  const [running, setRunning]               = useState(false);
-  const [azStatus, setAzStatus]             = useState(null);
-  const [subscriptions, setSubscriptions]   = useState([]);
-  const [selectedSub, setSelectedSub]       = useState("");
-  const [workspaceId, setWorkspaceId]       = useState(status?.workspaceId || "");
-  const [step, setStep]                     = useState("idle"); // idle | login-pending | logged-in | sub-selected | done
-  const termRef = useRef(null);
+  const [step, setStep]                   = useState("idle"); // idle | waiting-code | logged-in | done
+  const [deviceUrl, setDeviceUrl]         = useState("");
+  const [deviceCode, setDeviceCode]       = useState("");
+  const [loginMsg, setLoginMsg]           = useState("");
+  const [loginPollTimer, setLoginPollTimer] = useState(null);
+  const [loggedInAs, setLoggedInAs]       = useState(null);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [selectedSub, setSelectedSub]     = useState("");
+  const [workspaceId, setWorkspaceId]     = useState(status?.workspaceId || "");
+  const [busy, setBusy]                   = useState(false);
+  const [msg, setMsg]                     = useState({ type: "", text: "" });
+  const [grafanaProvisioned, setGrafanaProvisioned] = useState(false);
+  const [tokenStatus, setTokenStatus]     = useState(null);
 
+  // Check login state on mount
   useEffect(() => {
-    if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight;
-  }, [termLines]);
+    checkLogin();
+    return () => { if (loginPollTimer) clearInterval(loginPollTimer); };
+  }, []); // eslint-disable-line
 
-  useEffect(() => {
-    checkAzStatus();
-  }, []);
+  const info  = (text) => setMsg({ type: "info", text });
+  const ok    = (text) => setMsg({ type: "ok",   text });
+  const err   = (text) => setMsg({ type: "err",  text });
 
-  const addLine = (type, text) => {
-    setTermLines(prev => [...prev, { type, text }]);
-  };
-
-  // ── Poll backend via axios POST ─────────────────────────────────────────────
-  const runStream = async (cmdKey, label) => {
-    if (running) return;
-    setRunning(true);
-    addLine("cmd", `$ ${label}`);
+  const checkLogin = async () => {
     try {
-      const { data } = await axios.post(
-        "/api/log-analytics/az-run",
-        { cmd: cmdKey },
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 180000 }
-      );
-
-      if (data.output) {
-        data.output.split("\n").filter(Boolean).forEach(line =>
-          addLine(data.exitCode === 0 ? "stdout" : "stderr", line)
-        );
-      }
-
-      // Special handling for az login device code flow
-      if (data.pending && data.deviceUrl) {
-        addLine("ok", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        addLine("ok", "  OPEN THIS URL IN YOUR BROWSER:");
-        addLine("ok", `  ${data.deviceUrl}`);
-        if (data.deviceCode) {
-          addLine("ok", `  ENTER CODE: ${data.deviceCode}`);
-        }
-        addLine("ok", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        addLine("info", "Waiting for authentication... (polling every 5s)");
-
-        // Poll az-login-status every 5 seconds until logged in
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          try {
-            const { data: st } = await axios.get("/api/log-analytics/az-login-status", {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (st.loggedIn) {
-              clearInterval(poll);
-              setRunning(false);
-              addLine("ok", `✓ Successfully logged in as: ${st.account?.user || "Azure user"}`);
-              checkAzStatus();
-              onStatusChange();
-            } else if (attempts >= 36) { // 3 min max
-              clearInterval(poll);
-              setRunning(false);
-              addLine("error", "Authentication timed out. Please try again.");
-            }
-          } catch { /* keep polling */ }
-        }, 5000);
-        return; // don't call setRunning(false) here — polling loop handles it
-      }
-
-      addLine("info", `Exited with code ${data.exitCode}`);
-    } catch (e) {
-      addLine("error", e.response?.data?.message || e.message);
-    } finally {
-      setRunning(false);
-      checkAzStatus();
-      onStatusChange();
-    }
-  };
-
-  // ── Check az login status ────────────────────────────────────────────────────
-  const checkAzStatus = async () => {
-    try {
-      const { data } = await axios.get("/api/log-analytics/az-login-status", { headers: { Authorization: `Bearer ${token}` } });
-      setAzStatus(data);
+      const { data } = await axios.get("/api/log-analytics/az-login-status", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (data.loggedIn) {
+        setLoggedInAs(data.account);
         setStep("logged-in");
         loadSubscriptions();
+        loadTokenStatus();
       }
     } catch {}
   };
 
   const loadSubscriptions = async () => {
     try {
-      const { data } = await axios.get("/api/log-analytics/subscriptions", { headers: { Authorization: `Bearer ${token}` } });
-      if (data.success) {
+      const { data } = await axios.get("/api/log-analytics/subscriptions", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (data.success && data.subscriptions?.length) {
         setSubscriptions(data.subscriptions);
         const def = data.subscriptions.find(s => s.isDefault);
         if (def) setSelectedSub(def.id);
@@ -323,156 +266,326 @@ function AzureConfigPanel({ T, token, onStatusChange, status }) {
     } catch {}
   };
 
-  const selectSubscription = async () => {
-    if (!selectedSub) return;
+  const loadTokenStatus = async () => {
     try {
-      await axios.post("/api/log-analytics/az-set-subscription", { subscriptionId: selectedSub }, { headers: { Authorization: `Bearer ${token}` } });
-      addLine("ok", `✓ Subscription set to: ${selectedSub}`);
-      setStep("sub-selected");
+      const { data } = await axios.get("/api/log-analytics/status", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTokenStatus(data);
+      if (data.workspaceId) setWorkspaceId(data.workspaceId);
+    } catch {}
+  };
+
+  // ── Step 1: Start az login ────────────────────────────────────────────────
+  const startLogin = async () => {
+    if (busy) return;
+    setBusy(true);
+    setDeviceUrl(""); setDeviceCode(""); setLoginMsg("");
+    info("Requesting device login code from Azure...");
+    try {
+      const { data } = await axios.post(
+        "/api/log-analytics/az-run",
+        { cmd: "login" },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
+      );
+
+      if (data.pending && data.deviceUrl) {
+        setDeviceUrl(data.deviceUrl);
+        setDeviceCode(data.deviceCode || "");
+        setStep("waiting-code");
+        info("Waiting for browser authentication...");
+
+        // Poll login status every 5s
+        const timer = setInterval(async () => {
+          try {
+            const { data: st } = await axios.get("/api/log-analytics/az-login-status", {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (st.loggedIn) {
+              clearInterval(timer);
+              setLoginPollTimer(null);
+              setLoggedInAs(st.account);
+              setStep("logged-in");
+              ok(`✓ Signed in as: ${st.account?.user || "Azure user"}`);
+              loadSubscriptions();
+              loadTokenStatus();
+              onStatusChange();
+            }
+          } catch {}
+        }, 5000);
+        setLoginPollTimer(timer);
+
+      } else if (!data.success) {
+        err(data.output || "Login failed. Please wait a few seconds and try again.");
+        setStep("idle");
+      }
     } catch (e) {
-      addLine("error", e.response?.data?.message || e.message);
+      err(e.response?.data?.message || e.message);
+      setStep("idle");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const saveWorkspace = async () => {
-    if (!workspaceId.trim()) return;
-    addLine("info", `Workspace ID saved: ${workspaceId.trim()}`);
-    addLine("info", "Running token refresh...");
-    runStream("refresh-tokens", "refresh-tokens.sh");
-    setStep("done");
+  // ── Logout ────────────────────────────────────────────────────────────────
+  const doLogout = async () => {
+    setBusy(true);
+    try {
+      await axios.post("/api/log-analytics/az-run", { cmd: "logout" }, { headers: { Authorization: `Bearer ${token}` } });
+      setStep("idle"); setLoggedInAs(null); setSubscriptions([]);
+      setSelectedSub(""); ok("Signed out.");
+    } catch {}
+    setBusy(false);
   };
 
-  // Token color map
-  const lineColor = { cmd: "#7ec8e3", stdout: T.text, stderr: "#ffb347", error: "#f2495c", ok: "#39d353", info: T.muted };
+  // ── Step 2: Set subscription ─────────────────────────────────────────────
+  const setSubscription = async () => {
+    if (!selectedSub || busy) return;
+    setBusy(true);
+    try {
+      await axios.post(
+        "/api/log-analytics/az-set-subscription",
+        { subscriptionId: selectedSub },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      ok(`✓ Subscription set: ${subscriptions.find(s => s.id === selectedSub)?.name || selectedSub}`);
+    } catch (e) {
+      err(e.response?.data?.message || e.message);
+    }
+    setBusy(false);
+  };
+
+  // ── Step 3: Save workspace + refresh tokens ───────────────────────────────
+  const saveAndRefresh = async () => {
+    if (!workspaceId.trim() || busy) return;
+    setBusy(true);
+    info("Refreshing tokens...");
+    try {
+      const { data } = await axios.post(
+        "/api/log-analytics/az-run",
+        { cmd: "refresh-tokens" },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
+      );
+      if (data.exitCode === 0) {
+        ok("✓ Tokens refreshed. Log Analytics queries are now active.");
+        loadTokenStatus();
+        onStatusChange();
+      } else {
+        err("Token refresh failed: " + (data.output || "unknown error"));
+      }
+    } catch (e) {
+      err(e.message);
+    }
+    setBusy(false);
+  };
+
+  // ── Step 4: Provision Grafana datasource ─────────────────────────────────
+  const provisionGrafana = async () => {
+    if (busy) return;
+    setBusy(true);
+    info("Provisioning Azure Monitor datasource in Grafana...");
+    try {
+      const { data } = await axios.post(
+        "/api/log-analytics/grafana-provision",
+        { workspaceId: workspaceId.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (data.success) {
+        setGrafanaProvisioned(true);
+        ok(`✓ ${data.message}`);
+      } else {
+        err(data.message);
+      }
+    } catch (e) {
+      err(e.response?.data?.message || e.message);
+    }
+    setBusy(false);
+  };
+
+  const msgColor = { ok: "#39d353", err: "#f2495c", info: "#7ec8e3" };
+
+  const subName = subscriptions.find(s => s.id === selectedSub)?.name || "";
 
   return (
-    <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", maxWidth: 720 }}>
 
-      {/* Step wizard */}
-      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${T.border}`, background: T.cardBg, padding: "0 16px", flexShrink: 0 }}>
-        {[
-          { key: "login",     label: "1. Connect Azure", icon: <FaSignInAlt /> },
-          { key: "sub",       label: "2. Select Subscription", icon: <FaList /> },
-          { key: "workspace", label: "3. Set Workspace ID", icon: <FaDatabase /> },
-          { key: "tokens",    label: "4. Refresh Tokens", icon: <FaSync /> },
-        ].map(({ key, label, icon }) => (
-          <div key={key} style={{ padding: "10px 16px", fontSize: 12, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11 }}>{icon}</span>{label}
+      {/* ── Global status message ── */}
+      {msg.text && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 6, fontSize: 12,
+          background: msg.type === "ok" ? "rgba(57,211,83,0.1)" : msg.type === "err" ? "rgba(242,73,92,0.1)" : "rgba(126,200,227,0.1)",
+          border: `1px solid ${msg.type === "ok" ? "#39d35340" : msg.type === "err" ? "#f2495c40" : "#7ec8e340"}`,
+          color: msgColor[msg.type] || T.text }}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* ══ STEP 1: Azure Login ══ */}
+      <WizardStep num={1} title="Connect Azure Account" done={step === "logged-in" || step === "done"} T={T}>
+        {step === "idle" && (
+          <div>
+            <p style={{ fontSize: 12, color: T.muted, margin: "0 0 12px" }}>
+              Click below to start a device-code login. A URL + code will appear — open the URL
+              in your browser and paste the code to authenticate.
+            </p>
+            <WizardBtn T={T} color={T.blue} onClick={startLogin} busy={busy} label="Connect Azure Account" icon="🔑" />
           </div>
-        ))}
-      </div>
+        )}
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
-
-        {/* Left: action panel */}
-        <div style={{ width: 280, flexShrink: 0, borderRight: `1px solid ${T.border}`, padding: "16px", overflowY: "auto", background: T.cardBg }}>
-
-          {/* ── Step 1: Login ── */}
-          <Section T={T} label="Step 1: Azure Login" icon={<FaSignInAlt />}>
-            {azStatus?.loggedIn ? (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: T.green, fontSize: 12 }}>
-                  <FaCheckCircle /> Logged in as<br />
-                  <span style={{ color: T.text, fontWeight: 600 }}>{azStatus.account?.user}</span>
+        {step === "waiting-code" && deviceUrl && (
+          <div>
+            <div style={{ marginBottom: 12, padding: "14px 16px", background: "#0d1117", borderRadius: 6, border: "1px solid #39d35360" }}>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>STEP 1 — Open this URL in your browser:</div>
+              <a href={deviceUrl} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 13, fontWeight: 700, color: "#39d353", wordBreak: "break-all" }}>
+                {deviceUrl}
+              </a>
+              {deviceCode && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>STEP 2 — Enter this code:</div>
+                  <div style={{ display: "inline-block", padding: "6px 16px", background: "#1c2128", border: "2px solid #F46800",
+                    borderRadius: 6, fontSize: 20, fontWeight: 800, letterSpacing: "0.25em", color: "#F46800", fontFamily: "monospace" }}>
+                    {deviceCode}
+                  </div>
+                  <button onClick={() => navigator.clipboard?.writeText(deviceCode)}
+                    style={{ marginLeft: 10, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                      background: "transparent", border: `1px solid ${T.border}`, borderRadius: 4, color: T.muted }}>
+                    Copy
+                  </button>
                 </div>
-                <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>
-                  Session persists for ~30 days. Tokens auto-refresh every 50 min.
-                </div>
-                <ActionBtn T={T} color="#f2495c" onClick={() => runStream("logout", "az logout")} disabled={running} icon={<FaSignOutAlt />} label="Sign Out" />
-              </div>
-            ) : (
-              <div>
-                <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>
-                  Opens a device-code login. A URL and code will appear in the terminal →
-                  open the URL in your browser and enter the code to authenticate.
-                </div>
-                <ActionBtn T={T} color={T.blue} onClick={() => runStream("login", "az login --use-device-code")} disabled={running} icon={<FaSignInAlt />} label="Connect Azure Account" />
-              </div>
-            )}
-          </Section>
-
-          {/* ── Step 2: Subscription ── */}
-          {azStatus?.loggedIn && (
-            <Section T={T} label="Step 2: Select Subscription" icon={<FaList />}>
-              {subscriptions.length === 0 ? (
-                <ActionBtn T={T} color={T.blue} onClick={() => { loadSubscriptions(); runStream("account-list", "az account list"); }} disabled={running} icon={<FaList />} label="Load Subscriptions" />
-              ) : (
-                <>
-                  <select value={selectedSub} onChange={e => setSelectedSub(e.target.value)}
-                    style={{ width: "100%", padding: "6px 8px", fontSize: 12, background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: 4, marginBottom: 8 }}>
-                    <option value="">-- Select subscription --</option>
-                    {subscriptions.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}{s.isDefault ? " (default)" : ""}</option>
-                    ))}
-                  </select>
-                  <ActionBtn T={T} color={T.blue} onClick={selectSubscription} disabled={!selectedSub || running} icon={<FaCheckCircle />} label="Set Subscription" />
-                </>
               )}
-            </Section>
-          )}
-
-          {/* ── Step 3: Workspace ID ── */}
-          {(step === "sub-selected" || step === "done" || (azStatus?.loggedIn && status?.workspaceId)) && (
-            <Section T={T} label="Step 3: Log Analytics Workspace ID" icon={<FaDatabase />}>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>
-                Azure Portal → Log Analytics workspaces → your workspace → Overview → Workspace ID
+              <div style={{ marginTop: 10, fontSize: 12, color: "#ffb347" }}>
+                ⏳ Waiting for you to authenticate in your browser...
               </div>
-              <input value={workspaceId} onChange={e => setWorkspaceId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                style={{ width: "100%", padding: "6px 8px", fontSize: 12, background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: 4, marginBottom: 8, boxSizing: "border-box" }} />
-              <ActionBtn T={T} color="#39d353" onClick={saveWorkspace} disabled={!workspaceId.trim() || running} icon={<FaSync />} label="Save & Refresh Tokens" />
-            </Section>
-          )}
-
-          {/* ── Step 4: Manual refresh ── */}
-          {step === "done" && (
-            <Section T={T} label="Step 4: Token Status" icon={<FaSync />}>
-              <div style={{ fontSize: 11, color: T.green, marginBottom: 8 }}>
-                ✓ Tokens are being refreshed automatically every 50 minutes.
-              </div>
-              <ActionBtn T={T} color={T.blue} onClick={() => runStream("refresh-tokens", "refresh-tokens.sh")} disabled={running} icon={<FaSync />} label="Refresh Tokens Now" />
-            </Section>
-          )}
-        </div>
-
-        {/* Right: terminal output */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ padding: "6px 14px", borderBottom: `1px solid ${T.border}`, background: "#0d1117", flexShrink: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <FaTerminal style={{ color: "#39d353", fontSize: 12 }} />
-            <span style={{ fontSize: 11, color: "#888", fontFamily: "monospace" }}>Azure CLI Output</span>
-            {running && <span style={{ fontSize: 10, color: "#ffb347", marginLeft: "auto" }}>● Running...</span>}
-            <button onClick={() => setTermLines([])} style={{ marginLeft: running ? 8 : "auto", fontSize: 10, background: "transparent", border: "none", color: "#555", cursor: "pointer" }}>Clear</button>
+            </div>
           </div>
-          <div ref={termRef} style={{ flex: 1, overflow: "auto", background: "#0d1117", padding: "12px 16px", fontFamily: "'Cascadia Code','Fira Code','Courier New',monospace", fontSize: 12, lineHeight: 1.7 }}>
-            {termLines.map((line, i) => (
-              <div key={i} style={{ color: lineColor[line.type] || "#ccc", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                {line.type === "cmd" ? <span style={{ opacity: 0.5 }}>$ </span> : ""}
-                {line.text}
-              </div>
-            ))}
-            {running && <div style={{ color: "#39d353" }}>▋</div>}
+        )}
+
+        {(step === "logged-in" || step === "done") && loggedInAs && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px",
+            background: "rgba(57,211,83,0.08)", borderRadius: 6, border: "1px solid #39d35330" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#39d353", fontWeight: 700 }}>✓ Connected</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{loggedInAs.user || loggedInAs.name}</div>
+            </div>
+            <button onClick={doLogout} disabled={busy}
+              style={{ padding: "5px 12px", fontSize: 11, cursor: busy ? "not-allowed" : "pointer",
+                background: "rgba(242,73,92,0.12)", border: "1px solid #f2495c50", borderRadius: 4, color: "#f2495c" }}>
+              Sign Out
+            </button>
           </div>
-        </div>
-      </div>
+        )}
+      </WizardStep>
+
+      {/* ══ STEP 2: Select Subscription ══ */}
+      {(step === "logged-in" || step === "done") && (
+        <WizardStep num={2} title="Select Subscription" done={!!selectedSub} T={T}>
+          {subscriptions.length === 0 ? (
+            <WizardBtn T={T} color={T.blue} onClick={loadSubscriptions} busy={busy} label="Load Subscriptions" icon="🔄" />
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <select value={selectedSub} onChange={e => setSelectedSub(e.target.value)}
+                style={{ flex: 1, minWidth: 200, padding: "8px 10px", fontSize: 12, background: T.bg, color: T.text,
+                  border: `1px solid ${T.border}`, borderRadius: 4 }}>
+                <option value="">— Select subscription —</option>
+                {subscriptions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.isDefault ? " ★ default" : ""}{s.state !== "Enabled" ? ` (${s.state})` : ""}
+                  </option>
+                ))}
+              </select>
+              <WizardBtn T={T} color="#39d353" onClick={setSubscription} busy={busy || !selectedSub}
+                label="Set" icon="✓" small />
+            </div>
+          )}
+          {selectedSub && subName && (
+            <div style={{ marginTop: 8, fontSize: 11, color: T.muted }}>
+              ID: <code style={{ background: T.border, padding: "1px 5px", borderRadius: 3 }}>{selectedSub}</code>
+            </div>
+          )}
+        </WizardStep>
+      )}
+
+      {/* ══ STEP 3: Log Analytics Workspace ID ══ */}
+      {(step === "logged-in" || step === "done") && (
+        <WizardStep num={3} title="Log Analytics Workspace ID" done={!!tokenStatus?.workspaceConfigured} T={T}>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
+            Azure Portal → Log Analytics workspaces → your workspace → Overview → <strong style={{ color: T.text }}>Workspace ID</strong>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input value={workspaceId} onChange={e => setWorkspaceId(e.target.value)}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              style={{ flex: 1, padding: "8px 10px", fontSize: 12, background: T.bg, color: T.text,
+                border: `1px solid ${T.border}`, borderRadius: 4 }} />
+            <WizardBtn T={T} color={T.blue} onClick={saveAndRefresh} busy={busy || !workspaceId.trim()}
+              label="Save & Refresh Tokens" icon="🔄" small />
+          </div>
+          {tokenStatus?.tokens?.logAnalytics?.status === "ok" && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "#39d353" }}>
+              ✓ Tokens active — auto-refreshes every 50 min
+            </div>
+          )}
+        </WizardStep>
+      )}
+
+      {/* ══ STEP 4: Provision Grafana Datasource ══ */}
+      {(step === "logged-in" || step === "done") && (
+        <WizardStep num={4} title="Add Azure Monitor to Grafana" done={grafanaProvisioned} T={T}>
+          <p style={{ fontSize: 12, color: T.muted, margin: "0 0 12px" }}>
+            Provisions an <strong style={{ color: T.text }}>Azure Monitor</strong> datasource in Grafana using your current login.
+            This enables App Insights queries, Log Analytics queries, and metric alerts directly inside Grafana dashboards.
+          </p>
+          <div style={{ marginBottom: 12, padding: "10px 14px", background: T.bg,
+            border: `1px solid ${T.border}`, borderRadius: 6, fontSize: 11, color: T.muted }}>
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "4px 8px" }}>
+              <span>Subscription:</span><span style={{ color: T.text }}>{subName || selectedSub || "—"}</span>
+              <span>App Insights:</span><span style={{ color: T.text }}>{process.env.REACT_APP_APP_INSIGHTS_ID || "from env"}</span>
+              <span>Workspace ID:</span><span style={{ color: T.text }}>{workspaceId || "—"}</span>
+            </div>
+          </div>
+          <WizardBtn T={T} color="#F46800" onClick={provisionGrafana} busy={busy || !selectedSub}
+            label={grafanaProvisioned ? "Re-provision Grafana" : "Provision Grafana Datasource"} icon="📊" />
+          {grafanaProvisioned && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#39d353" }}>
+              ✓ Done! Go to <strong>Data Visualization → Data Sources</strong> to verify.
+              Use the <strong>Azure Monitor</strong> datasource when creating dashboards and alerts.
+            </div>
+          )}
+        </WizardStep>
+      )}
     </div>
   );
 }
 
-function Section({ T, label, icon, children }) {
+// ── Wizard step card ───────────────────────────────────────────────────────────
+function WizardStep({ num, title, done, T, children }) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
-        <span style={{ color: T.blue }}>{icon}</span>{label}
+    <div style={{ marginBottom: 20, padding: "16px 18px", borderRadius: 8,
+      border: `1px solid ${done ? "#39d35340" : T.border}`,
+      background: done ? "rgba(57,211,83,0.04)" : T.cardBg }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center",
+          justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0,
+          background: done ? "#39d353" : T.blue, color: "#fff" }}>
+          {done ? "✓" : num}
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{title}</span>
       </div>
       {children}
     </div>
   );
 }
 
-function ActionBtn({ T, color, onClick, disabled, icon, label }) {
+// ── Wizard button ──────────────────────────────────────────────────────────────
+function WizardBtn({ T, color, onClick, busy, label, icon, small }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, fontWeight: 600, border: "none", borderRadius: 4, cursor: disabled ? "not-allowed" : "pointer", background: disabled ? T.dim : color, color: "#fff", opacity: disabled ? 0.6 : 1, width: "100%", justifyContent: "center" }}>
-      <span style={{ fontSize: 11 }}>{icon}</span>{label}
+    <button onClick={onClick} disabled={busy}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6,
+        padding: small ? "6px 14px" : "9px 20px",
+        fontSize: small ? 12 : 13, fontWeight: 600,
+        border: "none", borderRadius: 5, cursor: busy ? "not-allowed" : "pointer",
+        background: busy ? "#444" : color, color: "#fff", opacity: busy ? 0.7 : 1,
+        transition: "opacity 0.15s" }}>
+      {busy ? "⏳" : icon} {label}
     </button>
   );
 }
