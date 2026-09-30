@@ -128,6 +128,39 @@ mode = console
 level = warn
 GRAFANA_INI
 
+# ── Install Grafana plugins ───────────────────────────────────────────────────
+# marcusolsson-json-datasource: lets Grafana use any JSON/HTTP backend as datasource
+# This is how our Node.js backend becomes a native Grafana datasource
+RUN /opt/grafana/bin/grafana cli \
+      --pluginsDir /var/lib/grafana/plugins \
+      plugins install marcusolsson-json-datasource || \
+    echo "Plugin install failed (no internet?) — will try at runtime"
+
+# Allow unsigned plugins (required for some community plugins)
+RUN echo "" >> /etc/grafana/grafana.ini && \
+    echo "[plugins]" >> /etc/grafana/grafana.ini && \
+    echo "allow_loading_unsigned_plugins = marcusolsson-json-datasource" >> /etc/grafana/grafana.ini
+
+# ── Provision our Node.js backend as a Grafana JSON datasource ───────────────
+# Grafana calls http://127.0.0.1:5000/api/grafana for all queries
+# This means App Insights and Log Analytics data is available in Grafana
+# via our existing backend — no credentials needed in Grafana itself
+RUN cat > /etc/grafana/provisioning/datasources/nexgen-backend.yaml <<'DS_YAML'
+apiVersion: 1
+datasources:
+  - name: NexGen App Insights
+    type: marcusolsson-json-datasource
+    uid: nexgen-appinsights
+    access: proxy
+    url: http://127.0.0.1:5000/api/grafana
+    basicAuth: false
+    isDefault: true
+    jsonData:
+      queryParams: ""
+    version: 1
+    editable: true
+DS_YAML
+
 # ── Copy backend ──────────────────────────────────────────────────────────────
 WORKDIR /app/backend
 COPY --from=backend-builder /build /app/backend

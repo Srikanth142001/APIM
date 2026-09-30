@@ -48,6 +48,8 @@ const cronRoutes         = require("./routes/cronRoutes");
 const logAnalyticsRoutes = require("./routes/logAnalyticsRoutes");
 // ── File Upload ───────────────────────────────────────────────────────────────
 const uploadRoutes       = require("./routes/uploadRoutes");
+// ── Grafana Custom Datasource ─────────────────────────────────────────────────
+const grafanaDatasource  = require("./routes/grafanaDatasource");
 
 const app = express();
 app.use(cors());
@@ -55,6 +57,9 @@ app.use(express.json());
 
 // ── Public endpoints (no auth required) ─────────────────────────────────────
 app.use("/api/auth", authRoutes);
+
+// ── Grafana Datasource — no JWT (Grafana calls this server-side from inside container) ──
+app.use("/api/grafana", grafanaDatasource);
 
 // ── Feature flags — public endpoint so frontend can check before login ──────
 app.get("/api/features", (req, res) => {
@@ -111,6 +116,7 @@ app.use("/api/cron",                cronRoutes);
 app.use("/api/log-analytics",       logAnalyticsRoutes);
 // ── File Upload ───────────────────────────────────────────────────────────────
 app.use("/api/upload",              uploadRoutes);
+// (grafana datasource is registered before requireAuth above)
 
 // ── ML Scheduler Status & Control ────────────────────────────────────────────
 app.get("/api/ml-scheduler/status", requireAuth, (req, res) => {
