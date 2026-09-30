@@ -143,8 +143,7 @@ RUN echo "" >> /etc/grafana/grafana.ini && \
 
 # ── Provision our Node.js backend as a Grafana JSON datasource ───────────────
 # Grafana calls http://127.0.0.1:5000/api/grafana for all queries
-# This means App Insights and Log Analytics data is available in Grafana
-# via our existing backend — no credentials needed in Grafana itself
+# Static key: nexgen-grafana-ds-2024 (override via GRAFANA_DS_API_KEY env var)
 RUN cat > /etc/grafana/provisioning/datasources/nexgen-backend.yaml <<'DS_YAML'
 apiVersion: 1
 datasources:
@@ -157,6 +156,9 @@ datasources:
     isDefault: true
     jsonData:
       queryParams: ""
+      httpHeaderName1: "X-Grafana-Token"
+    secureJsonData:
+      httpHeaderValue1: "nexgen-grafana-ds-2024"
     version: 1
     editable: true
 DS_YAML

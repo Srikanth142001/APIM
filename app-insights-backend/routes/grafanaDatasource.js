@@ -3,6 +3,10 @@
  * Implements the Grafana SimpleJSON / JSON API protocol so our backend
  * acts as a native Grafana datasource.
  *
+ * Static API key: nexgen-grafana-ds-2024
+ * Grafana sends this in the X-Grafana-Token header (configured in provisioning).
+ * Override via GRAFANA_DS_API_KEY env var.
+ *
  * Plugin used: marcusolsson-json-datasource (auto-installed in Dockerfile)
  * Grafana calls these endpoints:
  *   GET  /api/grafana/              → health check
@@ -26,6 +30,30 @@ const axios   = require("axios");
 const https   = require("https");
 const fs      = require("fs");
 const router  = express.Router();
+
+const agent = new https.Agent({ rejectUnauthorized: false });
+
+// ── Static API key for Grafana datasource auth ────────────────────────────────
+// Default: nexgen-grafana-ds-2024
+// Override: set GRAFANA_DS_API_KEY env var
+const GRAFANA_DS_KEY = process.env.GRAFANA_DS_API_KEY || "nexgen-grafana-ds-2024";
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+function requireDsKey(req, res, next) {
+  // Health check bypass — Grafana tests GET / without a key first
+  if (req.method === "GET" && req.path === "/") return next();
+
+  const key = req.headers["x-grafana-token"]
+           || req.headers["authorization"]?.replace("Bearer ", "")
+           || req.query.apiKey;
+
+  if (key !== GRAFANA_DS_KEY) {
+    return res.status(401).json({ error: "Invalid datasource API key" });
+  }
+  next();
+}
+
+router.use(requireDsKey);
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 
