@@ -43,31 +43,84 @@ if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then
   echo "✅ Grafana admin password overridden from GRAFANA_ADMIN_PASSWORD"
 fi
 
-# ── Auto-provision Azure Monitor datasource in Grafana if credentials are set ─
-# This writes a provisioning YAML so Grafana loads it on startup.
-# Can also be triggered from the Log Analytics Config tab at runtime.
-if [ -n "$AZURE_SUBSCRIPTION_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
-  PROV_FILE="/etc/grafana/provisioning/datasources/azure-monitor.yaml"
-  cat > "$PROV_FILE" <<EOF
+# ── Auto-provision Grafana datasources ────────────────────────────────────────
+# Datasource 1: App Insights (via direct API key — no az login needed)
+# Datasource 2: Log Analytics Workspace (via Service Principal OR az login token)
+#
+# These are written as Grafana provisioning YAMLs so Grafana loads them at startup.
+# Grafana uses the grafana-azure-monitor-datasource plugin (built-in since Grafana 7+).
+
+mkdir -p /etc/grafana/provisioning/datasources
+
+# ── Datasource 1: App Insights via API Key ─────────────────────────────────
+if [ -n "$APP_INSIGHTS_APP_ID" ] && [ -n "$APP_INSIGHTS_API_KEY" ]; then
+  cat > /etc/grafana/provisioning/datasources/appinsights.yaml <<EOF
 apiVersion: 1
 datasources:
-  - name: Azure Monitor
+  - name: Application Insights
     type: grafana-azure-monitor-datasource
     access: proxy
+    uid: appinsights-ds
+    jsonData:
+      cloudName: azuremonitor
+      azureAuthType: clientsecret
+      tenantId: "${AZURE_TENANT_ID:-placeholder-tenant}"
+      clientId: "${AZURE_CLIENT_ID:-placeholder-client}"
+      subscriptionId: "${AZURE_SUBSCRIPTION_ID:-placeholder-sub}"
+      appInsightsAppId: "${APP_INSIGHTS_APP_ID}"
+    secureJsonData:
+      clientSecret: "${AZURE_CLIENT_SECRET:-placeholder-secret}"
+      appInsightsApiKey: "${APP_INSIGHTS_API_KEY}"
+    version: 1
+    editable: true
+EOF
+  echo "✅ Grafana datasource provisioned: Application Insights (App ID: ${APP_INSIGHTS_APP_ID})"
+fi
+
+# ── Datasource 2: Log Analytics via Service Principal ─────────────────────
+if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
+  cat > /etc/grafana/provisioning/datasources/loganalytics.yaml <<EOF
+apiVersion: 1
+datasources:
+  - name: Log Analytics
+    type: grafana-azure-monitor-datasource
+    access: proxy
+    uid: loganalytics-ds
+    jsonData:
+      cloudName: azuremonitor
+      azureAuthType: clientsecret
+      tenantId: "${AZURE_TENANT_ID}"
+      clientId: "${AZURE_CLIENT_ID}"
+      subscriptionId: "${AZURE_SUBSCRIPTION_ID:-}"
+      logAnalyticsDefaultWorkspace: "${LOG_ANALYTICS_WORKSPACE_ID:-}"
+    secureJsonData:
+      clientSecret: "${AZURE_CLIENT_SECRET}"
+    version: 1
+    editable: true
+EOF
+  echo "✅ Grafana datasource provisioned: Log Analytics (tenant: ${AZURE_TENANT_ID})"
+elif [ -n "$AZURE_SUBSCRIPTION_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
+  # Fallback: currentuser auth (requires az login inside container)
+  cat > /etc/grafana/provisioning/datasources/loganalytics.yaml <<EOF
+apiVersion: 1
+datasources:
+  - name: Log Analytics
+    type: grafana-azure-monitor-datasource
+    access: proxy
+    uid: loganalytics-ds
     jsonData:
       cloudName: azuremonitor
       azureAuthType: currentuser
       subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
       tenantId: "${AZURE_TENANT_ID}"
-      ${APP_INSIGHTS_APP_ID:+appInsightsAppId: \"${APP_INSIGHTS_APP_ID}\"}
-      ${LOG_ANALYTICS_WORKSPACE_ID:+logAnalyticsDefaultWorkspace: \"${LOG_ANALYTICS_WORKSPACE_ID}\"}
+      logAnalyticsDefaultWorkspace: "${LOG_ANALYTICS_WORKSPACE_ID:-}"
     version: 1
     editable: true
 EOF
-  echo "✅ Grafana Azure Monitor datasource provisioned (subscription: ${AZURE_SUBSCRIPTION_ID})"
+  echo "✅ Grafana datasource provisioned: Log Analytics (currentuser auth — requires az login)"
 else
-  echo "ℹ️  Grafana datasource not provisioned (AZURE_SUBSCRIPTION_ID / AZURE_TENANT_ID not set)"
-  echo "   Use the Log Analytics → Config tab to provision it at runtime after az login"
+  echo "ℹ️  Log Analytics datasource not provisioned — set AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET"
+  echo "   OR set AZURE_TENANT_ID + AZURE_SUBSCRIPTION_ID and run az login inside the container"
 fi
 
 # ── Validate required backend env vars ────────────────────────────────────────
