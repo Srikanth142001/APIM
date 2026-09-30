@@ -86,6 +86,7 @@ RUN mkdir -p /var/lib/grafana \
              /etc/grafana/provisioning/dashboards
 
 # ── Grafana config ────────────────────────────────────────────────────────────
+# Cache-bust: v2 — removed legacy [alerting] section (not supported in Grafana 11)
 RUN cat > /etc/grafana/grafana.ini <<'GRAFANA_INI'
 [server]
 http_port = 3000
