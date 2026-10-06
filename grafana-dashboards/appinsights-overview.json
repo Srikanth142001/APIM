@@ -1,0 +1,195 @@
+{
+  "id": null,
+  "uid": "nexgen-appinsights-overview",
+  "title": "App Insights Overview",
+  "description": "NexGen API Monitor — App Insights metrics powered by your backend",
+  "tags": ["nexgen", "appinsights"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request Rate (5m bins)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "short",
+          "displayName": "Requests/5min"
+        }
+      },
+      "options": { "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/requests_rate?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "root_selector": "",
+          "columns": [
+            { "selector": "time", "text": "Time", "type": "timestamp" },
+            { "selector": "value", "text": "Value", "type": "number" }
+          ],
+          "format": "timeseries"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Failure Rate (5m bins)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#F2495C", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "short",
+          "displayName": "Failures/5min"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/failure_rate?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "columns": [
+            { "selector": "time", "text": "Time", "type": "timestamp" },
+            { "selector": "value", "text": "Value", "type": "number" }
+          ],
+          "format": "timeseries"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P95 Response Time (ms)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#FF9830", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "ms",
+          "displayName": "P95 ms"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/response_time_p95?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "columns": [
+            { "selector": "time", "text": "Time", "type": "timestamp" },
+            { "selector": "value", "text": "Value", "type": "number" }
+          ],
+          "format": "timeseries"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Exception Count (5m bins)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#8AB8FF", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "short",
+          "displayName": "Exceptions/5min"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/exceptions?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "columns": [
+            { "selector": "time", "text": "Time", "type": "timestamp" },
+            { "selector": "value", "text": "Value", "type": "number" }
+          ],
+          "format": "timeseries"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Top Failing Operations",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 10 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": { "custom": { "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "failures" }, "properties": [{ "id": "custom.displayMode", "value": "color-background" }, { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }
+        ]
+      },
+      "options": { "sortBy": [{ "desc": true, "displayName": "failures" }] },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/top_failing_ops?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "columns": [
+            { "selector": "operation", "text": "Operation", "type": "string" },
+            { "selector": "resultCode", "text": "Status Code", "type": "string" },
+            { "selector": "failures", "text": "Failures", "type": "number" }
+          ],
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Top Slow Operations (P95 ms)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 10 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "nexgen-appinsights" },
+      "fieldConfig": {
+        "defaults": { "custom": { "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p95_ms" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://127.0.0.1:5000/api/grafana/data/top_slow_ops?hours=1",
+          "url_options": { "method": "GET", "headers": [{ "key": "Authorization", "value": "Bearer nexgen-grafana-ds-2024" }] },
+          "parser": "backend",
+          "columns": [
+            { "selector": "operation", "text": "Operation", "type": "string" },
+            { "selector": "p95_ms", "text": "P95 (ms)", "type": "number" },
+            { "selector": "count", "text": "Count", "type": "number" }
+          ],
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

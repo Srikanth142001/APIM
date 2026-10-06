@@ -163,6 +163,24 @@ datasources:
     editable: true
 DS_YAML
 
+# ── Provision pre-built App Insights dashboard ────────────────────────────────
+RUN mkdir -p /etc/grafana/provisioning/dashboards /var/lib/grafana/dashboards
+
+RUN cat > /etc/grafana/provisioning/dashboards/nexgen.yaml <<'DASH_YAML'
+apiVersion: 1
+providers:
+  - name: NexGen Dashboards
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+DASH_YAML
+
+COPY grafana-dashboards/ /var/lib/grafana/dashboards/
+
 # ── Copy backend ──────────────────────────────────────────────────────────────
 WORKDIR /app/backend
 COPY --from=backend-builder /build /app/backend
