@@ -55,8 +55,6 @@ function requireDsKey(req, res, next) {
 
 router.use(requireDsKey);
 
-const agent = new https.Agent({ rejectUnauthorized: false });
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getAppInsightsHeaders() {
   return {
