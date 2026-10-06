@@ -312,4 +312,109 @@ router.post("/tag-values", async (req, res) => {
   }
 });
 
+// ── Infinity datasource REST endpoints ───────────────────────────────────────
+// Infinity datasource fetches these GET URLs directly and parses the JSON array.
+// Usage in Grafana panel: Type=JSON, URL= one of these paths, Parser=Backend
+//
+// Example URLs to use in Infinity panels:
+//   http://127.0.0.1:5000/api/grafana/data/requests_rate?hours=1
+//   http://127.0.0.1:5000/api/grafana/data/failure_rate?hours=1
+//   http://127.0.0.1:5000/api/grafana/data/response_time_p95?hours=1
+//   http://127.0.0.1:5000/api/grafana/data/exceptions?hours=1
+//   http://127.0.0.1:5000/api/grafana/data/top_failing_ops?hours=1
+//   http://127.0.0.1:5000/api/grafana/data/top_slow_ops?hours=1
+
+router.get("/data/:metric", async (req, res) => {
+  const { metric } = req.params;
+  const hours = parseFloat(req.query.hours) || 1;
+  const now = Date.now();
+  const fromIso = new Date(now - hours * 3600000).toISOString();
+  const toIso   = new Date(now).toISOString();
+
+  try {
+    let result;
+    switch (metric) {
+      case "requests_rate":
+        result = await queryAppInsights(
+          `requests | summarize count=count() by bin(timestamp, 5m) | order by timestamp asc`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({ time: r[0], value: r[1] ?? 0 })));
+
+      case "failure_rate":
+        result = await queryAppInsights(
+          `requests | where success == false | summarize count=count() by bin(timestamp, 5m) | order by timestamp asc`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({ time: r[0], value: r[1] ?? 0 })));
+
+      case "response_time_p95":
+        result = await queryAppInsights(
+          `requests | summarize p95=round(percentile(duration,95),1) by bin(timestamp, 5m) | order by timestamp asc`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({ time: r[0], value: r[1] ?? 0 })));
+
+      case "exceptions":
+        result = await queryAppInsights(
+          `exceptions | summarize count=count() by bin(timestamp, 5m) | order by timestamp asc`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({ time: r[0], value: r[1] ?? 0 })));
+
+      case "top_failing_ops":
+        result = await queryAppInsights(
+          `requests | where success == false | summarize failures=count() by operation_Name, resultCode | order by failures desc | take 20`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({
+          operation: r[0] ?? "",
+          resultCode: String(r[1] ?? ""),
+          failures: r[2] ?? 0
+        })));
+
+      case "top_slow_ops":
+        result = await queryAppInsights(
+          `requests | summarize p95=round(percentile(duration,95),1), count=count() by operation_Name | order by p95 desc | take 20`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({
+          operation: r[0] ?? "",
+          p95_ms: r[1] ?? 0,
+          count: r[2] ?? 0
+        })));
+
+      case "dependency_failures":
+        result = await queryAppInsights(
+          `dependencies | where success == false | summarize count=count() by bin(timestamp, 5m) | order by timestamp asc`,
+          fromIso, toIso
+        );
+        return res.json(result.rows.map(r => ({ time: r[0], value: r[1] ?? 0 })));
+
+      default:
+        return res.status(404).json({ error: `Unknown metric: ${metric}` });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── List all available data endpoints ────────────────────────────────────────
+router.get("/data", (req, res) => {
+  res.json({
+    message: "NexGen App Insights — Grafana Infinity Datasource endpoints",
+    apiKey: "Pass in Authorization: Bearer nexgen-grafana-ds-2024 header",
+    endpoints: [
+      { path: "/api/grafana/data/requests_rate",      description: "Request rate over time (5m bins)", fields: ["time","value"] },
+      { path: "/api/grafana/data/failure_rate",        description: "Failure rate over time (5m bins)", fields: ["time","value"] },
+      { path: "/api/grafana/data/response_time_p95",   description: "P95 response time ms (5m bins)",  fields: ["time","value"] },
+      { path: "/api/grafana/data/exceptions",          description: "Exception count (5m bins)",        fields: ["time","value"] },
+      { path: "/api/grafana/data/dependency_failures", description: "Dependency failures (5m bins)",    fields: ["time","value"] },
+      { path: "/api/grafana/data/top_failing_ops",     description: "Top failing operations (table)",   fields: ["operation","resultCode","failures"] },
+      { path: "/api/grafana/data/top_slow_ops",        description: "Top slow operations (table)",      fields: ["operation","p95_ms","count"] },
+    ],
+    params: { hours: "number of hours to look back (default: 1)" },
+  });
+});
+
 module.exports = router;
