@@ -43,84 +43,71 @@ if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then
   echo "✅ Grafana admin password overridden from GRAFANA_ADMIN_PASSWORD"
 fi
 
-# ── Auto-provision Grafana datasources ────────────────────────────────────────
-# Datasource 1: App Insights (via direct API key — no az login needed)
-# Datasource 2: Log Analytics Workspace (via Service Principal OR az login token)
-#
-# These are written as Grafana provisioning YAMLs so Grafana loads them at startup.
-# Grafana uses the grafana-azure-monitor-datasource plugin (built-in since Grafana 7+).
+# ── Provision Grafana datasources with real env vars ──────────────────────────
+# Rewrites the placeholder YAML with actual values from env vars.
+# App Insights uses Azure Monitor built-in plugin (needs SP credentials).
+# MySQL uses built-in mysql plugin.
+GRAFANA_DS_FILE="/etc/grafana/provisioning/datasources/nexgen-backend.yaml"
 
-mkdir -p /etc/grafana/provisioning/datasources
-
-# ── Datasource 1: App Insights via API Key ─────────────────────────────────
-if [ -n "$APP_INSIGHTS_APP_ID" ] && [ -n "$APP_INSIGHTS_API_KEY" ]; then
-  cat > /etc/grafana/provisioning/datasources/appinsights.yaml <<EOF
+# Start fresh datasource file
+cat > "$GRAFANA_DS_FILE" <<'YAML_START'
 apiVersion: 1
 datasources:
-  - name: Application Insights
-    type: grafana-azure-monitor-datasource
-    access: proxy
-    uid: appinsights-ds
-    jsonData:
-      cloudName: azuremonitor
-      azureAuthType: clientsecret
-      tenantId: "${AZURE_TENANT_ID:-placeholder-tenant}"
-      clientId: "${AZURE_CLIENT_ID:-placeholder-client}"
-      subscriptionId: "${AZURE_SUBSCRIPTION_ID:-placeholder-sub}"
-      appInsightsAppId: "${APP_INSIGHTS_APP_ID}"
-    secureJsonData:
-      clientSecret: "${AZURE_CLIENT_SECRET:-placeholder-secret}"
-      appInsightsApiKey: "${APP_INSIGHTS_API_KEY}"
-    version: 1
-    editable: true
-EOF
-  echo "✅ Grafana datasource provisioned: Application Insights (App ID: ${APP_INSIGHTS_APP_ID})"
-fi
+YAML_START
 
-# ── Datasource 2: Log Analytics via Service Principal ─────────────────────
+# ── App Insights / Azure Monitor datasource ──────────────────────────────────
+# Requires: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID
+# Plus: APP_INSIGHTS_APP_ID, APP_INSIGHTS_API_KEY
 if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
-  cat > /etc/grafana/provisioning/datasources/loganalytics.yaml <<EOF
-apiVersion: 1
-datasources:
-  - name: Log Analytics
+  cat >> "$GRAFANA_DS_FILE" <<EOF
+  - name: App Insights (Azure Monitor)
     type: grafana-azure-monitor-datasource
+    uid: nexgen-azure-monitor
     access: proxy
-    uid: loganalytics-ds
+    isDefault: true
     jsonData:
       cloudName: azuremonitor
       azureAuthType: clientsecret
       tenantId: "${AZURE_TENANT_ID}"
       clientId: "${AZURE_CLIENT_ID}"
       subscriptionId: "${AZURE_SUBSCRIPTION_ID:-}"
+      appInsightsAppId: "${APP_INSIGHTS_APP_ID:-}"
       logAnalyticsDefaultWorkspace: "${LOG_ANALYTICS_WORKSPACE_ID:-}"
     secureJsonData:
       clientSecret: "${AZURE_CLIENT_SECRET}"
+      appInsightsApiKey: "${APP_INSIGHTS_API_KEY:-}"
     version: 1
     editable: true
 EOF
-  echo "✅ Grafana datasource provisioned: Log Analytics (tenant: ${AZURE_TENANT_ID})"
-elif [ -n "$AZURE_SUBSCRIPTION_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
-  # Fallback: currentuser auth (requires az login inside container)
-  cat > /etc/grafana/provisioning/datasources/loganalytics.yaml <<EOF
-apiVersion: 1
-datasources:
-  - name: Log Analytics
-    type: grafana-azure-monitor-datasource
-    access: proxy
-    uid: loganalytics-ds
-    jsonData:
-      cloudName: azuremonitor
-      azureAuthType: currentuser
-      subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
-      tenantId: "${AZURE_TENANT_ID}"
-      logAnalyticsDefaultWorkspace: "${LOG_ANALYTICS_WORKSPACE_ID:-}"
-    version: 1
-    editable: true
-EOF
-  echo "✅ Grafana datasource provisioned: Log Analytics (currentuser auth — requires az login)"
+  echo "✅ Grafana datasource: Azure Monitor (App Insights + Log Analytics)"
 else
-  echo "ℹ️  Log Analytics datasource not provisioned — set AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET"
-  echo "   OR set AZURE_TENANT_ID + AZURE_SUBSCRIPTION_ID and run az login inside the container"
+  echo "ℹ️  Azure Monitor datasource not provisioned — set AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET"
+fi
+
+# ── MySQL datasource ──────────────────────────────────────────────────────────
+# Requires: MYSQL_SERVER_NAME, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD
+if [ -n "$MYSQL_SERVER_NAME" ] && [ -n "$MYSQL_USER" ] && [ -n "$MYSQL_PASSWORD" ]; then
+  MYSQL_PORT="${MYSQL_PORT:-3306}"
+  cat >> "$GRAFANA_DS_FILE" <<EOF
+  - name: MySQL
+    type: mysql
+    uid: nexgen-mysql
+    access: proxy
+    url: "${MYSQL_SERVER_NAME}:${MYSQL_PORT}"
+    database: "${MYSQL_DATABASE:-}"
+    user: "${MYSQL_USER}"
+    secureJsonData:
+      password: "${MYSQL_PASSWORD}"
+    jsonData:
+      maxOpenConns: 10
+      maxIdleConns: 10
+      connMaxLifetime: 14400
+    version: 1
+    editable: true
+EOF
+  echo "✅ Grafana datasource: MySQL (${MYSQL_SERVER_NAME})"
+else
+  echo "ℹ️  MySQL datasource not provisioned — set MYSQL_SERVER_NAME + MYSQL_USER + MYSQL_PASSWORD"
 fi
 
 # ── Validate required backend env vars ────────────────────────────────────────

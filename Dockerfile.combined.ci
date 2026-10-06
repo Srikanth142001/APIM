@@ -129,41 +129,44 @@ level = warn
 GRAFANA_INI
 
 # ── Install Grafana plugins ───────────────────────────────────────────────────
-# yesoreyeram-infinity-datasource: stable Grafana 11 plugin, queries any HTTP/JSON endpoint
-# Replaces marcusolsson-json-datasource which has Path tab crash on Grafana 11
-RUN /opt/grafana/bin/grafana cli \
-      --pluginsDir /var/lib/grafana/plugins \
-      plugins install yesoreyeram-infinity-datasource || \
-    echo "Plugin install failed (no internet?) — will use at runtime"
+# NOTE: Community plugins (infinity, json-datasource) are NOT compatible with
+# Grafana 11's plugin SDK. We use ONLY built-in datasources:
+#   - grafana-azure-monitor-datasource (built-in, for App Insights + Log Analytics)
+#   - mysql (built-in, for MySQL databases)
+#   - grafana-testdata-datasource (built-in, for testing panels)
+# No plugin install needed — all built-in.
 
-# Allow unsigned/unverified plugins
+# Allow unsigned plugins section (empty — not needed for built-ins)
 RUN echo "" >> /etc/grafana/grafana.ini && \
     echo "[plugins]" >> /etc/grafana/grafana.ini && \
-    echo "allow_loading_unsigned_plugins = yesoreyeram-infinity-datasource,marcusolsson-json-datasource" >> /etc/grafana/grafana.ini
+    echo "# using only built-in plugins" >> /etc/grafana/grafana.ini
 
-# ── Provision NexGen backend as Grafana Infinity datasource ──────────────────
-# Grafana calls http://127.0.0.1:5000/api/grafana for all queries
-# Static key: nexgen-grafana-ds-2024 (override via GRAFANA_DS_API_KEY env var)
+# ── Provision built-in datasources ───────────────────────────────────────────
+# These use env vars injected at runtime via the entrypoint script.
+# The entrypoint rewrites this file with actual values before Grafana starts.
 RUN cat > /etc/grafana/provisioning/datasources/nexgen-backend.yaml <<'DS_YAML'
 apiVersion: 1
 datasources:
-  - name: NexGen App Insights
-    type: yesoreyeram-infinity-datasource
-    uid: nexgen-appinsights
+  - name: App Insights (Azure Monitor)
+    type: grafana-azure-monitor-datasource
+    uid: nexgen-azure-monitor
     access: proxy
     isDefault: true
     jsonData:
-      global_queries: []
-      auth_method: bearerToken
-      allowedHosts:
-        - "http://127.0.0.1:5000"
+      cloudName: azuremonitor
+      azureAuthType: clientsecret
+      tenantId: PLACEHOLDER_TENANT
+      clientId: PLACEHOLDER_CLIENT
+      subscriptionId: PLACEHOLDER_SUB
+      appInsightsAppId: PLACEHOLDER_APPID
     secureJsonData:
-      bearerToken: "nexgen-grafana-ds-2024"
+      clientSecret: PLACEHOLDER_SECRET
+      appInsightsApiKey: PLACEHOLDER_APIKEY
     version: 1
     editable: true
 DS_YAML
 
-# ── Provision pre-built App Insights dashboard ────────────────────────────────
+# ── Dashboard provisioning config ────────────────────────────────────────────
 RUN mkdir -p /etc/grafana/provisioning/dashboards /var/lib/grafana/dashboards
 
 RUN cat > /etc/grafana/provisioning/dashboards/nexgen.yaml <<'DASH_YAML'
@@ -178,8 +181,6 @@ providers:
     options:
       path: /var/lib/grafana/dashboards
 DASH_YAML
-
-COPY grafana-dashboards/ /var/lib/grafana/dashboards/
 
 # ── Copy backend ──────────────────────────────────────────────────────────────
 WORKDIR /app/backend
